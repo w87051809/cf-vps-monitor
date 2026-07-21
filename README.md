@@ -1,10 +1,21 @@
 # 探针面板
 
-这是 `w87051809/cf-vps-monitor` 的自用 Cloudflare Worker 探针面板。
+基于 Cloudflare Workers 的 VPS 探针面板。前端、API 和定时任务运行在 Worker 上，数据存放在 Cloudflare D1，实时状态由 Durable Objects 维护。
+
+当前仓库已经按自用生产环境整理，默认域名、项目名称、Agent 下载源和通知配置都指向 `w87051809/cf-vps-monitor`。
 
 当前版本：`v2.0.2`
 
-最近更新详情看这里：[CHANGELOG.md](./CHANGELOG.md)
+更新详情：[CHANGELOG.md](./CHANGELOG.md)
+
+## 功能概览
+
+- 服务器在线状态、系统信息和资源占用监控
+- 网站可用性检测
+- 后台管理、登录保护和 MFA
+- Telegram、SMTP 邮件、Webhook、QQ 多通道通知
+- Cloudflare D1 数据存储
+- Linux、Windows、OpenWrt/iStoreOS Agent 安装脚本
 
 ## 当前架构
 
@@ -28,6 +39,8 @@ Worker 需要这些绑定：
 不需要 Supabase，不需要 `SUPABASE_URL`，也不需要 `SUPABASE_SECRET_KEY`。
 
 ## 部署
+
+部署前确认 Cloudflare 已绑定 D1、Durable Objects，并设置好 `JWT_SECRET`。
 
 ```bash
 npm install
