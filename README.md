@@ -2,6 +2,10 @@
 
 这是 `w87051809/cf-vps-monitor` 的自用 Cloudflare Worker 探针面板。
 
+当前版本：`v2.0.2`
+
+最近更新详情看这里：[CHANGELOG.md](./CHANGELOG.md)
+
 ## 当前架构
 
 - 前端、API、定时任务：Cloudflare Workers
