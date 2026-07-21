@@ -1,5 +1,5 @@
-export const SUPABASE_FREE_DATABASE_STORAGE_REFERENCE_BYTES = 500 * 1024 * 1024;
-export const SUPABASE_PRO_DATABASE_STORAGE_REFERENCE_BYTES = 8 * 1024 * 1024 * 1024;
+export const D1_FREE_DATABASE_STORAGE_REFERENCE_BYTES = 500 * 1024 * 1024;
+export const D1_PAID_DATABASE_STORAGE_REFERENCE_BYTES = 8 * 1024 * 1024 * 1024;
 export const WORKERS_FREE_DAILY_REQUESTS = 100_000;
 export const WORKERS_PAID_DAILY_REQUESTS_INCLUDED = 10_000_000;
 export const ESTIMATED_MONITOR_RECORD_BYTES = 420;
@@ -11,9 +11,9 @@ export function buildQuotaReference() {
   return {
     database: {
       storage_bytes: {
-        free_project_reference: SUPABASE_FREE_DATABASE_STORAGE_REFERENCE_BYTES,
-        pro_project_reference: SUPABASE_PRO_DATABASE_STORAGE_REFERENCE_BYTES,
-        note: 'Use the current Supabase project plan as the source of truth; these are planning references for local capacity estimates.',
+        free_project_reference: D1_FREE_DATABASE_STORAGE_REFERENCE_BYTES,
+        pro_project_reference: D1_PAID_DATABASE_STORAGE_REFERENCE_BYTES,
+        note: 'Use the current Cloudflare D1 plan as the source of truth; these are planning references for local capacity estimates.',
       },
       estimated_row_bytes: {
         monitor_record: ESTIMATED_MONITOR_RECORD_BYTES,
@@ -29,8 +29,8 @@ export function buildQuotaReference() {
       },
     },
     sources: {
-      supabase_pricing: 'https://supabase.com/pricing',
-      supabase_data_api: 'https://supabase.com/docs/guides/api',
+      d1_limits: 'https://developers.cloudflare.com/d1/platform/limits/',
+      d1_pricing: 'https://developers.cloudflare.com/d1/platform/pricing/',
       workers_limits: 'https://developers.cloudflare.com/workers/platform/limits/',
     },
   };

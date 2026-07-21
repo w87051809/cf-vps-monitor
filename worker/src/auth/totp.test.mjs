@@ -51,9 +51,9 @@ test('builds a compatible otpauth URI with matching issuer fields', () => {
   assert.equal(uri.protocol, 'otpauth:');
   assert.equal(uri.hostname, 'totp');
   assert.equal(uri.searchParams.get('secret'), RFC_SECRET);
-  assert.equal(uri.searchParams.get('issuer'), 'CF VPS Monitor');
+  assert.equal(uri.searchParams.get('issuer'), '探针面板');
   assert.equal(uri.searchParams.get('algorithm'), 'SHA1');
   assert.equal(uri.searchParams.get('digits'), '6');
   assert.equal(uri.searchParams.get('period'), '30');
-  assert.match(decodeURIComponent(uri.pathname), /CF VPS Monitor:admin name/);
+  assert.match(decodeURIComponent(uri.pathname), /探针面板:admin name/);
 });

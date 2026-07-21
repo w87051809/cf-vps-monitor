@@ -7,10 +7,11 @@ import {
   type AppDatabase,
 } from '../db/provider';
 import * as db from '../db/queries';
+import { initializeD1Database } from '../db/d1/client';
+import { D1_SCHEMA_VERSION } from '../db/d1/schema';
 import { sanitizeSetupDiagnosticDetail } from '../utils/setup-diagnostics';
 import { getCloudflareClientIp } from '../utils/request-ip';
 import { readLiveSnapshot, readRateLimitResult } from '../utils/do-response';
-import { BUNDLED_SUPABASE_MIGRATIONS, type BundledMigration } from '../generated/supabase-migrations';
 
 type SetupCheckStatus = 'ok' | 'warning' | 'error' | 'pending' | 'disabled';
 
@@ -29,7 +30,6 @@ const SETUP_INIT_RATE_LIMIT_MAX = 5;
 const SETUP_DO_FETCH_TIMEOUT_MS = 1_000;
 const SETUP_ADMIN_CHECK_TIMEOUT_MS = 1_000;
 const localSetupRateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
-const SUPABASE_MANAGEMENT_API = 'https://api.supabase.com/v1';
 
 function requestIp(c: SetupContext): string {
   return getCloudflareClientIp(c);
@@ -131,22 +131,22 @@ async function setupRateLimit(c: SetupContext, bucket: string, max: number, wind
   }
 }
 
-async function setupStatusRateLimit(c: SetupContext): Promise<Response | null> {
+function setupStatusRateLimit(c: SetupContext): Promise<Response | null> {
   return setupRateLimit(c, 'setup-status', SETUP_STATUS_RATE_LIMIT_MAX, SETUP_STATUS_RATE_LIMIT_WINDOW_MS);
 }
 
-async function setupInitRateLimit(c: SetupContext): Promise<Response | null> {
+function setupInitRateLimit(c: SetupContext): Promise<Response | null> {
   return setupRateLimit(c, 'setup-init', SETUP_INIT_RATE_LIMIT_MAX, SETUP_INIT_RATE_LIMIT_WINDOW_MS);
 }
 
 function databaseConfigCheck(): SetupCheck {
-  return setupCheck('database_config', 'ok', 'Supabase HTTP API/RPC is configured');
+  return setupCheck('database_config', 'ok', 'Cloudflare D1 binding DB is configured');
 }
 
 async function databaseConnectionCheck(database: AppDatabase): Promise<SetupCheck> {
   try {
-    await withTimeout(db.getSettingsByKeys(database, ['site_title']), SETUP_ADMIN_CHECK_TIMEOUT_MS, 'Supabase RPC probe timed out');
-    return setupCheck('database_connect', 'ok', 'Supabase RPC responded');
+    await withTimeout(db.getSettingsByKeys(database, ['site_title']), SETUP_ADMIN_CHECK_TIMEOUT_MS, 'D1 probe timed out');
+    return setupCheck('database_connect', 'ok', 'Cloudflare D1 responded');
   } catch (error) {
     return setupCheck('database_connect', 'error', sanitizeSetupDiagnosticDetail(error));
   }
@@ -156,9 +156,6 @@ function secretsCheck(env: Bindings): SetupCheck {
   const missing: string[] = [];
   if (new TextEncoder().encode(env.JWT_SECRET?.trim() || '').byteLength < 32) {
     missing.push('JWT_SECRET must be at least 32 bytes');
-  }
-  if (!(env.SUPABASE_SECRET_KEY?.trim() || env.SUPABASE_SERVICE_ROLE_KEY?.trim())) {
-    missing.push('SUPABASE_SECRET_KEY is required');
   }
   return missing.length > 0
     ? setupCheck('secrets', 'error', missing.join('; '))
@@ -214,7 +211,7 @@ async function rateLimitBindingCheck(env: Bindings): Promise<SetupCheck> {
 }
 
 function queryLayerCheck(): SetupCheck {
-  return setupCheck('query_layer', 'ok', 'Supabase HTTP RPC query layer is active');
+  return setupCheck('query_layer', 'ok', 'Cloudflare D1 query layer is active');
 }
 
 async function adminAccountStatus(database: AppDatabase): Promise<'present' | 'absent' | 'unknown'> {
@@ -230,139 +227,22 @@ async function adminAccountStatus(database: AppDatabase): Promise<'present' | 'a
   }
 }
 
-function supabaseProjectRef(env: Bindings): string | null {
-  const url = env.SUPABASE_URL?.trim().replace(/\/+$/, '') || '';
-  return url.match(/^https:\/\/([a-z0-9-]+)\.supabase\.co$/i)?.[1] || null;
+function d1ProjectRef(env: Bindings): string | null {
+  return env.DB ? 'cloudflare-d1' : null;
 }
 
-function sqlString(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
-}
-
-function redactSetupInitError(value: unknown): string {
-  return sanitizeSetupDiagnosticDetail(String(value ?? '').replace(/\bsbp_[A-Za-z0-9_]+/g, 'sbp_[REDACTED]'));
-}
-
-function extractQueryRows(payload: unknown): Record<string, unknown>[] {
-  if (Array.isArray(payload)) return payload.filter(row => row && typeof row === 'object') as Record<string, unknown>[];
-  if (!payload || typeof payload !== 'object') return [];
-  const body = payload as Record<string, unknown>;
-  for (const key of ['data', 'result', 'rows']) {
-    const value = body[key];
-    if (Array.isArray(value)) return value.filter(row => row && typeof row === 'object') as Record<string, unknown>[];
-  }
-  const nestedRows = body.result && typeof body.result === 'object'
-    ? (body.result as Record<string, unknown>).rows
-    : null;
-  return Array.isArray(nestedRows)
-    ? nestedRows.filter(row => row && typeof row === 'object') as Record<string, unknown>[]
-    : [];
-}
-
-async function runSupabaseQuery(projectRef: string, accessToken: string, query: string): Promise<unknown> {
-  const response = await fetch(`${SUPABASE_MANAGEMENT_API}/projects/${encodeURIComponent(projectRef)}/database/query`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ query }),
-  });
-  const text = await response.text();
-  let body: unknown = null;
+async function setupInitializationLocked(env: Bindings): Promise<boolean> {
   try {
-    body = text ? JSON.parse(text) as unknown : null;
+    const database = getDatabase(env);
+    return await db.countUsers(database) > 0;
   } catch {
-    body = null;
+    return false;
   }
-  if (!response.ok) {
-    const detail = typeof body === 'object' && body && 'message' in body
-      ? String((body as { message?: unknown }).message)
-      : text || `Supabase Management API HTTP ${response.status}`;
-    throw new Error(detail);
-  }
-  return body;
 }
 
-async function ensureSetupMigrationTable(projectRef: string, accessToken: string): Promise<void> {
-  await runSupabaseQuery(projectRef, accessToken, `
-create schema if not exists cfm_internal;
-create table if not exists cfm_internal.setup_migrations (
-  version text primary key,
-  name text not null,
-  checksum text not null,
-  applied_at timestamptz not null default now()
-);
-`);
-}
-
-type AppliedMigration = {
-  version: string;
-  checksum: string;
-};
-
-async function listAppliedMigrations(projectRef: string, accessToken: string): Promise<Map<string, AppliedMigration>> {
-  const payload = await runSupabaseQuery(projectRef, accessToken, 'select version, checksum from cfm_internal.setup_migrations order by version;');
-  return new Map(
-    extractQueryRows(payload)
-      .map(row => ({
-        version: typeof row.version === 'string' ? row.version : '',
-        checksum: typeof row.checksum === 'string' ? row.checksum : '',
-      }))
-      .filter(item => item.version)
-      .map(item => [item.version, item]),
-  );
-}
-
-function migrationQuery(migration: BundledMigration): string {
-  return `
-begin;
-select pg_advisory_xact_lock(86421025);
-
-${migration.sql}
-
-insert into cfm_internal.setup_migrations (version, name, checksum)
-values (${sqlString(migration.version)}, ${sqlString(migration.name)}, ${sqlString(migration.checksum)})
-on conflict (version) do update
-set name = excluded.name,
-    checksum = excluded.checksum,
-    applied_at = now();
-
-commit;
-`;
-}
-
-async function applyBundledMigrations(projectRef: string, accessToken: string) {
-  await ensureSetupMigrationTable(projectRef, accessToken);
-  const applied = await listAppliedMigrations(projectRef, accessToken);
-  const results: Array<{ version: string; name: string; status: 'applied' | 'skipped' }> = [];
-
-  for (const migration of BUNDLED_SUPABASE_MIGRATIONS) {
-    if (applied.get(migration.version)?.checksum === migration.checksum) {
-      results.push({ version: migration.version, name: migration.name, status: 'skipped' });
-      continue;
-    }
-    try {
-      await runSupabaseQuery(projectRef, accessToken, migrationQuery(migration));
-      applied.set(migration.version, migration);
-      results.push({ version: migration.version, name: migration.name, status: 'applied' });
-    } catch (error) {
-      const afterFailure = await listAppliedMigrations(projectRef, accessToken).catch(() => applied);
-      if (afterFailure.get(migration.version)?.checksum === migration.checksum) {
-        applied.set(migration.version, migration);
-        results.push({ version: migration.version, name: migration.name, status: 'skipped' });
-        continue;
-      }
-      throw new Error(`${migration.version}: ${redactSetupInitError(error)}`);
-    }
-  }
-
-  return {
-    total: BUNDLED_SUPABASE_MIGRATIONS.length,
-    applied: results.filter(item => item.status === 'applied').length,
-    skipped: results.filter(item => item.status === 'skipped').length,
-    results,
-  };
+function setupLockedResponse(c: SetupContext): Response {
+  c.header('Cache-Control', 'no-store');
+  return c.json({ error: 'Setup initialization is locked after setup is complete.' }, 403);
 }
 
 function limitedSetupResponse(
@@ -424,8 +304,8 @@ setupRoutes.get('/status', async (c) => {
     const connectionCheck = await databaseConnectionCheck(database);
     checks.push(connectionCheck);
     if (connectionCheck.status === 'ok') {
-      checks.push(setupCheck('database_role', 'disabled', 'Direct database role probe is not used in Supabase HTTP API mode'));
-      checks.push(setupCheck('schema', 'disabled', 'Schema probe is handled by Supabase migrations, not Worker runtime bootstrap'));
+      checks.push(setupCheck('database_role', 'disabled', 'D1 uses the Worker DB binding directly'));
+      checks.push(setupCheck('schema', 'ok', `D1 schema ${D1_SCHEMA_VERSION} is available`));
       checks.push(queryLayerCheck());
       checks.push(setupCheck(
         'admin_account',
@@ -438,16 +318,16 @@ setupRoutes.get('/status', async (c) => {
       ));
     } else {
       checks.push(setupCheck('database_role', 'pending', 'Database connection must succeed first'));
-      checks.push(setupCheck('schema', 'pending', 'Database connection must succeed first'));
+      checks.push(setupCheck('schema', 'pending', 'Run D1 initialization first'));
       checks.push(setupCheck('query_layer', 'pending', 'Database connection must succeed first'));
       checks.push(setupCheck('admin_account', 'pending', 'Database connection must succeed first'));
     }
   } else {
-    checks.push(setupCheck('database_connect', 'pending', 'Database configuration must be fixed first'));
-    checks.push(setupCheck('database_role', 'pending', 'Database configuration must be fixed first'));
-    checks.push(setupCheck('schema', 'pending', 'Database configuration must be fixed first'));
-    checks.push(setupCheck('query_layer', 'pending', 'Database configuration must be fixed first'));
-    checks.push(setupCheck('admin_account', 'pending', 'Database configuration must be fixed first'));
+    checks.push(setupCheck('database_connect', 'pending', 'D1 binding must be configured first'));
+    checks.push(setupCheck('database_role', 'pending', 'D1 binding must be configured first'));
+    checks.push(setupCheck('schema', 'pending', 'D1 binding must be configured first'));
+    checks.push(setupCheck('query_layer', 'pending', 'D1 binding must be configured first'));
+    checks.push(setupCheck('admin_account', 'pending', 'D1 binding must be configured first'));
   }
 
   checks.push(secretsCheck(c.env));
@@ -464,12 +344,19 @@ setupRoutes.get('/status', async (c) => {
   }, ok ? 200 : 503);
 });
 
-setupRoutes.get('/database/init', (c) => {
-  const projectRef = supabaseProjectRef(c.env);
+setupRoutes.get('/database/init', async (c) => {
+  const limited = await setupInitRateLimit(c);
+  if (limited) return limited;
+
+  const projectRef = d1ProjectRef(c.env);
+  if (projectRef && await setupInitializationLocked(c.env)) {
+    return setupLockedResponse(c);
+  }
+
   return c.json({
     ok: Boolean(projectRef),
     project_ref: projectRef,
-    migration_count: BUNDLED_SUPABASE_MIGRATIONS.length,
+    migration_count: 1,
   }, projectRef ? 200 : 503);
 });
 
@@ -477,28 +364,29 @@ setupRoutes.post('/database/init', async (c) => {
   const limited = await setupInitRateLimit(c);
   if (limited) return limited;
 
-  const projectRef = supabaseProjectRef(c.env);
+  const projectRef = d1ProjectRef(c.env);
   if (!projectRef) {
-    return c.json({ error: 'SUPABASE_URL is not configured as a Supabase project URL.' }, 503);
+    return c.json({ error: 'Cloudflare D1 binding DB is not configured.' }, 503);
   }
 
-  let payload: { accessToken?: unknown };
-  try {
-    payload = await c.req.json() as { accessToken?: unknown };
-  } catch {
-    return c.json({ error: 'Invalid JSON body.' }, 400);
-  }
-
-  const accessToken = typeof payload.accessToken === 'string' ? payload.accessToken.trim() : '';
-  if (!accessToken || accessToken.length > 4096) {
-    return c.json({ error: 'Supabase Access Token is required.' }, 400);
+  if (await setupInitializationLocked(c.env)) {
+    return setupLockedResponse(c);
   }
 
   try {
-    const result = await applyBundledMigrations(projectRef, accessToken);
-    return c.json({ success: true, project_ref: projectRef, ...result });
+    await initializeD1Database(c.env);
+    return c.json({
+      success: true,
+      project_ref: projectRef,
+      total: 1,
+      applied: 1,
+      skipped: 0,
+      results: [
+        { version: D1_SCHEMA_VERSION, name: 'cloudflare_d1_schema', status: 'applied' },
+      ],
+    });
   } catch (error) {
-    return c.json({ error: redactSetupInitError(error) }, 500);
+    return c.json({ error: sanitizeSetupDiagnosticDetail(error) }, 500);
   }
 });
 

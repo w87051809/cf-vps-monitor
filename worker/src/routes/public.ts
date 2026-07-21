@@ -7,7 +7,6 @@ import type { Context } from 'hono';
 import type { Bindings, Variables } from '../index';
 import * as db from '../db/queries';
 import { getDatabase } from '../db/provider';
-import { resolveSupabaseApiKey } from '../db/supabase-api/client';
 import { invalidateAdminSessionCache, validateAdminSession } from '../auth/admin-session';
 import { AuthConfigurationError, generateToken, verifyAdminToken } from '../auth/jwt';
 import { decryptTotpSecret, hashRecoveryCode } from '../auth/mfa';
@@ -780,7 +779,7 @@ async function timingSafeEqualString(actual: string | undefined, expected: strin
 }
 
 function readRecoverySecretKey(body: Record<string, unknown>): string {
-  const value = body.supabase_secret_key ?? body.supabase_service_role_key ?? body.service_role_key;
+  const value = body.recovery_key ?? body.jwt_secret ?? body.supabase_secret_key ?? body.supabase_service_role_key ?? body.service_role_key;
   return typeof value === 'string' ? value.trim() : '';
 }
 
@@ -1031,10 +1030,10 @@ publicRoutes.post('/admin/recovery', async (c) => {
   }
   if (userCount === 1) {
     if (!serviceRoleKey || serviceRoleKey.length > MAX_ADMIN_RECOVERY_KEY_LENGTH) {
-      return c.json({ error: 'Supabase Secret key 无效' }, 400);
+      return c.json({ error: '恢复密钥无效' }, 400);
     }
-    if (!await timingSafeEqualString(serviceRoleKey, resolveSupabaseApiKey(c.env))) {
-      return c.json({ error: 'Supabase Secret key 无效' }, 403);
+    if (!await timingSafeEqualString(serviceRoleKey, c.env.JWT_SECRET?.trim())) {
+      return c.json({ error: '恢复密钥无效' }, 403);
     }
   }
 
@@ -1053,7 +1052,7 @@ publicRoutes.post('/admin/recovery', async (c) => {
       database,
       username,
       'admin_recovery',
-      userCount === 0 ? '首次创建管理员账号' : '通过 Supabase Secret key 重置管理员账号',
+      userCount === 0 ? '首次创建管理员账号' : '通过恢复密钥重置管理员账号',
       'warning',
     ),
   );

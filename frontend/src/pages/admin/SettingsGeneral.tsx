@@ -673,7 +673,7 @@ export default function SettingsGeneral() {
               />
               <SettingInput
                 label="历史写入间隔（秒）"
-                description="实时数据仍会按采集间隔刷新，但历史记录至少间隔这么久才写入 Supabase"
+                description="实时数据仍会按采集间隔刷新，但历史记录至少间隔这么久才写入 D1"
                 value={getSettingValue(settings, 'record_persist_interval_sec', String(DEFAULT_RECORD_PERSIST_SEC))}
                 onChange={(value) => updateSetting('record_persist_interval_sec', value)}
                 type="number"
@@ -682,7 +682,7 @@ export default function SettingsGeneral() {
               />
               <SettingInput
                 label="Ping 采集与写入间隔（秒）"
-                description="统一控制 Ping 任务执行、结果上报和 Supabase 历史快照写入；最低 60 秒"
+                description="统一控制 Ping 任务执行、结果上报和 D1 历史快照写入；最低 60 秒"
                 value={getSettingValue(settings, 'ping_record_persist_interval_sec', String(DEFAULT_PING_RECORD_PERSIST_SEC))}
                 onChange={(value) => updateSetting('ping_record_persist_interval_sec', value)}
                 type="number"
@@ -691,7 +691,7 @@ export default function SettingsGeneral() {
               />
               <SettingInput
                 label="历史高水位行数（行）"
-                description="records、gpu_records、gpu_snapshots、ping_records、ping_snapshots 接近该行数时暂停历史写入，只保留实时展示，避免 Supabase 存储增长失控"
+                description="records、gpu_records、gpu_snapshots、ping_records、ping_snapshots 接近该行数时暂停历史写入，只保留实时展示，避免 D1 存储增长失控"
                 value={getSettingValue(settings, 'record_high_watermark_rows', String(DEFAULT_RECORD_HIGH_WATERMARK_ROWS))}
                 onChange={(value) => updateSetting('record_high_watermark_rows', value)}
                 type="number"
@@ -728,7 +728,7 @@ export default function SettingsGeneral() {
                     <Text id="general-settings-calculated-title" size="2" weight="bold">用量实时估算</Text>
                   </Flex>
                   <Text size="1" color="gray" className="quota-reference-line">
-                    历史存储按 Supabase 项目容量估算；Worker Free {formatInteger(derived.workerFreeDailyRequests)}/天，Paid {formatInteger(derived.workerPaidDailyRequests)}/天。
+                    历史存储按 D1 数据库容量估算；Worker Free {formatInteger(derived.workerFreeDailyRequests)}/天，Paid {formatInteger(derived.workerPaidDailyRequests)}/天。
                   </Text>
                 </Flex>
                 <Flex align="center" gap="2" wrap="wrap" className="quota-estimate-actions">
@@ -748,7 +748,7 @@ export default function SettingsGeneral() {
                   label="历史存储"
                   value={formatBytes(derived.estimatedStorageBytes)}
                   percent={derived.storagePercent}
-                  caption={`Supabase Free 存储参考 ${formatBytes(derived.freeStorageBytes)}，Pro 参考 ${formatBytes(derived.supabaseProStorageReferenceBytes)}`}
+                  caption={`D1 免费存储参考 ${formatBytes(derived.freeStorageBytes)}，付费参考 ${formatBytes(derived.supabaseProStorageReferenceBytes)}`}
                   icon={<Database size={15} />}
                 />
                 <QuotaBar
@@ -812,7 +812,7 @@ export default function SettingsGeneral() {
                 </div>
               </div>
               <Text size="1" color="gray" style={{ display: 'block', marginTop: 8 }}>
-                保存时会按允许范围校验并归一化；现在不再按数据库读写配额估算，主要关注 Worker 请求量和 Supabase 历史存储增长。
+                保存时会按允许范围校验并归一化；现在主要关注 Worker 请求量和 D1 历史存储增长。
                 {capacity?.row_counts_checked_at ? ` 行数刷新于 ${new Date(capacity.row_counts_checked_at).toLocaleString('zh-CN')}。` : ''}
                 {derived.cappedRowCounts && capacity?.row_counts_limit ? ` 单表计数达到 ${formatInteger(capacity.row_counts_limit)} 后停止，显示为下限。` : ''}
               </Text>

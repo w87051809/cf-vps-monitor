@@ -253,7 +253,7 @@ export default function SettingsSite() {
           description="显示在导航栏和浏览器标签页"
           value={settings.site_title || ''}
           onChange={(value) => updateSetting('site_title', value)}
-          placeholder="CF VPS Monitor"
+          placeholder="探针面板"
         />
         <SettingInput
           label="站点副标题"

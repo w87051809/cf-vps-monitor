@@ -2848,9 +2848,25 @@ html[data-monitor-theme='next'] .node-network-value strong {
 .notification-channel-controls {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(160px, 190px) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
+}
+
+.notification-method-checkboxes {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.notification-method-option {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .notification-method-select {
@@ -2900,6 +2916,20 @@ html[data-monitor-theme='next'] .node-network-value strong {
   max-width: 100%;
   gap: 8px 10px;
   align-items: start;
+}
+
+.notification-qq-form-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(34ch, 52ch) minmax(18ch, 22ch) minmax(14ch, 18ch);
+  width: fit-content;
+  max-width: 100%;
+  gap: 8px 10px;
+  align-items: start;
+}
+
+.notification-qq-url {
+  grid-column: 1 / span 2;
 }
 
 .notification-webhook-url-row {
@@ -3001,6 +3031,18 @@ html[data-monitor-theme='next'] .node-network-value strong {
   margin-top: 8px;
 }
 
+.notification-qq-actions {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  margin-top: 8px;
+}
+
 .notification-webhook-custom-grid {
   flex: 1 0 100%;
   width: 100%;
@@ -3030,6 +3072,7 @@ html[data-monitor-theme='next'] .node-network-value strong {
 
 .notification-email-test-button,
 .notification-telegram-test-button,
+.notification-qq-test-button,
 .notification-webhook-test-button {
   white-space: nowrap;
 }
@@ -3095,6 +3138,8 @@ html[data-monitor-theme='next'] .node-network-value strong {
 }
 
 .admin-command-code {
+  width: 100%;
+  min-height: 132px;
   max-width: 100%;
   margin-top: 12px;
   padding: 12px 18px 12px 14px;
@@ -3107,6 +3152,7 @@ html[data-monitor-theme='next'] .node-network-value strong {
   overflow-wrap: anywhere;
   word-break: break-word;
   scrollbar-gutter: stable;
+  resize: vertical;
 }
 
 .admin-node-edit-form {
@@ -4233,6 +4279,7 @@ html[data-monitor-theme='next'] .node-network-value strong {
   .notification-email-connection-grid,
   .notification-email-identity-grid,
   .notification-telegram-grid,
+  .notification-qq-form-grid,
   .notification-webhook-custom-grid,
   .notification-webhook-options-grid {
     width: 100%;
@@ -4242,6 +4289,7 @@ html[data-monitor-theme='next'] .node-network-value strong {
 @media (max-width: 768px) {
   .notification-email-identity-grid,
   .notification-telegram-grid,
+  .notification-qq-form-grid,
   .notification-webhook-custom-grid,
   .notification-webhook-options-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5005,10 +5053,15 @@ html[data-monitor-theme='next'] .node-network-value strong {
   .notification-email-connection-grid,
   .notification-email-identity-grid,
   .notification-telegram-grid,
+  .notification-qq-form-grid,
   .notification-webhook-custom-grid,
   .notification-webhook-form-grid,
   .notification-webhook-options-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .notification-qq-url {
+    grid-column: auto;
   }
 
   .notification-email-host,
@@ -5024,6 +5077,7 @@ html[data-monitor-theme='next'] .node-network-value strong {
 
   .notification-email-test-button,
   .notification-telegram-test-button,
+  .notification-qq-test-button,
   .notification-webhook-test-button {
     width: 100%;
   }

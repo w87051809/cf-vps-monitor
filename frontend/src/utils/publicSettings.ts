@@ -24,7 +24,7 @@ export interface PublicSettings {
 }
 
 const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
-  site_title: 'CF VPS Monitor',
+  site_title: '探针面板',
   site_subtitle: '',
   site_description: '服务器监控探针',
   language: 'zh-CN',

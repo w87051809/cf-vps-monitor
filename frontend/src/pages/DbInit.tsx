@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Badge, Box, Button, Card, Flex, Heading, Separator, Text, TextField } from '@radix-ui/themes';
-import { CheckCircle2, Database, KeyRound, Loader2, XCircle } from 'lucide-react';
+import { Badge, Box, Button, Card, Flex, Heading, Separator, Text } from '@radix-ui/themes';
+import { CheckCircle2, Database, Loader2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 type InitInfo = {
@@ -30,7 +30,6 @@ async function readJson(response: Response): Promise<InitResult> {
 
 export default function DbInit() {
   const [info, setInfo] = React.useState<InitInfo | null>(null);
-  const [token, setToken] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [result, setResult] = React.useState<InitResult | null>(null);
 
@@ -43,23 +42,18 @@ export default function DbInit() {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!token.trim()) {
-      toast.error('请输入 Supabase Access Token');
-      return;
-    }
     setLoading(true);
     setResult(null);
     try {
       const response = await fetch('/api/setup/database/init', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessToken: token.trim() }),
+        body: JSON.stringify({}),
       });
       const body = await readJson(response);
       setResult(body);
       if (!response.ok || !body.success) throw new Error(body.error || `HTTP ${response.status}`);
-      setToken('');
-      toast.success('数据库初始化完成');
+      toast.success('D1 数据库初始化完成');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '初始化失败');
     } finally {
@@ -76,9 +70,9 @@ export default function DbInit() {
           <Box className="login-logo">
             <Database size={32} color="white" />
           </Box>
-          <Heading size="6">初始化数据库</Heading>
+          <Heading size="6">初始化 D1 数据库</Heading>
           <Text size="2" color="gray" align="center">
-            输入 1 小时有效的 Supabase Access Token，一键创建所需表、索引和 RPC。
+            使用 Cloudflare D1 创建面板需要的表、索引和默认设置。
           </Text>
         </Flex>
 
@@ -86,40 +80,18 @@ export default function DbInit() {
 
         <Flex className="db-init-meta" gap="2" wrap="wrap" mb="4">
           <Badge color={info?.ok ? 'green' : 'red'} variant="soft">
-            项目: {info?.project_ref || '未识别'}
+            数据库: {info?.project_ref || '未绑定'}
           </Badge>
           <Badge color="gray" variant="soft">
-            迁移: {info?.migration_count ?? '-'}
+            步骤: {info?.migration_count ?? '-'}
           </Badge>
         </Flex>
 
         <form onSubmit={submit}>
-          <Flex direction="column" gap="4">
-            <label htmlFor="supabase-access-token">
-              <Text size="2" weight="bold" style={{ marginBottom: 6, display: 'inline-block' }}>
-                Supabase Access Token
-              </Text>
-              <TextField.Root
-                id="supabase-access-token"
-                size="3"
-                type="password"
-                value={token}
-                onChange={(event) => setToken(event.target.value)}
-                placeholder="sbp_xxx"
-                autoComplete="off"
-                disabled={loading}
-              >
-                <TextField.Slot>
-                  <KeyRound size={16} />
-                </TextField.Slot>
-              </TextField.Root>
-            </label>
-
-            <Button type="submit" size="3" disabled={loading || !info?.ok} style={{ height: 44, fontWeight: 700 }}>
-              {loading ? <Loader2 className="db-init-spin" size={18} /> : <Database size={18} />}
-              {loading ? '正在初始化...' : '一键初始化数据库'}
-            </Button>
-          </Flex>
+          <Button type="submit" size="3" disabled={loading || !info?.ok} style={{ height: 44, width: '100%', fontWeight: 700 }}>
+            {loading ? <Loader2 className="db-init-spin" size={18} /> : <Database size={18} />}
+            {loading ? '正在初始化...' : '一键初始化 D1 数据库'}
+          </Button>
         </form>
 
         {result && (
@@ -127,7 +99,7 @@ export default function DbInit() {
             <Flex align="center" gap="2" mb="2">
               {done ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
               <Text size="2" weight="bold">
-                {done ? `完成：新执行 ${result.applied ?? 0} 个，跳过 ${result.skipped ?? 0} 个` : '初始化失败'}
+                {done ? `完成：执行 ${result.applied ?? 0} 个，跳过 ${result.skipped ?? 0} 个` : '初始化失败'}
               </Text>
             </Flex>
             {result.error && <Text size="2">{result.error}</Text>}

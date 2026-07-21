@@ -1,8 +1,10 @@
 import type * as db from '../db/queries';
 import { normalizeRecipients, sendSmtpEmail, type SmtpConfig, type SmtpResult } from './email.ts';
 import type { NotificationMessage } from './notification-templates.ts';
+import { sendQqMessage, type QqSendResult } from './qq.ts';
 import { formatTelegramHtmlText, sendTelegramMessage } from './telegram.ts';
 import { sendWebhookMessage, type WebhookFormat, type WebhookSendResult } from './webhook.ts';
+import { parseNotificationChannels, type NotificationChannel } from './notification-channels.ts';
 
 export const NOTIFICATION_DISPATCH_SETTING_KEYS = [
   'notification_method',
@@ -27,6 +29,11 @@ export const NOTIFICATION_DISPATCH_SETTING_KEYS = [
   'webhook_username',
   'webhook_password',
   'webhook_retry_count',
+  'qq_notification_url',
+  'qq_notification_token',
+  'qq_notification_target_type',
+  'qq_notification_target_id',
+  'qq_notification_retry_count',
 ] as const;
 
 type HealthStatus = 'ok' | 'warning' | 'error' | 'disabled';
@@ -49,11 +56,13 @@ type RecordHealth = (
 type TelegramSender = typeof sendTelegramMessage;
 type EmailSender = typeof sendSmtpEmail;
 type WebhookSender = typeof sendWebhookMessage;
+type QqSender = typeof sendQqMessage;
 
 type DispatchDependencies = {
   sendTelegram?: TelegramSender;
   sendEmail?: EmailSender;
   sendWebhook?: WebhookSender;
+  sendQq?: QqSender;
   recordHealth?: RecordHealth;
 };
 
@@ -145,7 +154,7 @@ async function dispatchEmail(
       username: settings.email_smtp_username || '',
       password: settings.email_smtp_password || '',
       fromAddress: settings.email_smtp_from_address || '',
-      fromName: settings.email_smtp_from_name || 'CF VPS Monitor',
+      fromName: settings.email_smtp_from_name || '探针面板',
       recipients: normalizeRecipients(settings.email_smtp_recipients || ''),
       authMethod: settings.email_smtp_auth_method === 'login' ? 'login' : 'plain',
     };
@@ -208,6 +217,65 @@ async function dispatchWebhook(
   return false;
 }
 
+async function dispatchQq(
+  database: db.QueryDatabase | undefined,
+  settings: NotificationSettings,
+  notification: NotificationMessage,
+  deps: DispatchDependencies,
+  auditUser?: string,
+): Promise<boolean> {
+  const url = settings.qq_notification_url || '';
+  const token = settings.qq_notification_token || '';
+  const targetId = settings.qq_notification_target_id || '';
+  if (!url || !token || !targetId) {
+    await record(deps, database, 'qq', 'disabled', 'QQ notification is not configured');
+    return false;
+  }
+  const result: QqSendResult = await (deps.sendQq || sendQqMessage)({
+    url,
+    token,
+    targetType: settings.qq_notification_target_type === 'group' ? 'group' : 'private',
+    targetId,
+    retryCount: Number(settings.qq_notification_retry_count || 1),
+  }, notification);
+  if (result.ok) {
+    await record(deps, database, 'qq', 'ok', `QQ notification sent: host=${result.host}; status=${result.status}`, {
+      successThrottleMs: 60 * 60 * 1000,
+    });
+    return true;
+  }
+  await record(
+    deps,
+    database,
+    'qq',
+    'error',
+    `QQ send failed: host=${result.host || 'unknown'}; status=${result.status ?? 'unknown'}; error=${result.error}`,
+    { auditAction: 'qq_error', auditUser },
+  );
+  return false;
+}
+
+async function dispatchSingleChannel(
+  channel: NotificationChannel,
+  database: db.QueryDatabase | undefined,
+  settings: NotificationSettings,
+  notification: NotificationMessage,
+  deps: DispatchDependencies,
+  auditUser?: string,
+): Promise<boolean> {
+  switch (channel) {
+    case 'email':
+      return dispatchEmail(database, settings, notification, deps, auditUser);
+    case 'webhook':
+      return dispatchWebhook(database, settings, notification, deps, auditUser);
+    case 'qq':
+      return dispatchQq(database, settings, notification, deps, auditUser);
+    case 'telegram':
+    default:
+      return dispatchTelegram(database, settings, notification, deps, auditUser);
+  }
+}
+
 export async function dispatchNotification(
   database: db.QueryDatabase | undefined,
   settings: NotificationSettings,
@@ -215,17 +283,31 @@ export async function dispatchNotification(
   options: DispatchOptions = {},
 ): Promise<boolean> {
   const deps = options.deps || {};
-  const channel = options.channel || settings.notification_method || 'telegram';
-  switch (channel) {
-    case 'none':
+  if (options.channel) {
+    const channel = options.channel;
+    if (channel === 'none') {
       await record(deps, database, 'notification', 'disabled', 'notification_method is none');
       return false;
-    case 'email':
-      return dispatchEmail(database, settings, notification, deps, options.auditUser);
-    case 'webhook':
-      return dispatchWebhook(database, settings, notification, deps, options.auditUser);
-    case 'telegram':
-    default:
-      return dispatchTelegram(database, settings, notification, deps, options.auditUser);
+    }
+    if (channel !== 'telegram' && channel !== 'email' && channel !== 'webhook' && channel !== 'qq') {
+      await record(deps, database, 'notification', 'error', `unknown notification channel: ${channel}`, {
+        auditAction: 'notification_error',
+        auditUser: options.auditUser,
+      });
+      return false;
+    }
+    return dispatchSingleChannel(channel, database, settings, notification, deps, options.auditUser);
   }
+
+  const channels = parseNotificationChannels(settings.notification_method);
+  if (channels.length === 0) {
+    await record(deps, database, 'notification', 'disabled', 'notification_method is none');
+    return false;
+  }
+
+  let sent = false;
+  for (const channel of channels) {
+    sent = await dispatchSingleChannel(channel, database, settings, notification, deps, options.auditUser) || sent;
+  }
+  return sent;
 }

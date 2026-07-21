@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -8,8 +8,8 @@ const wrangler = join(root, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
 const sourceConfig = join(root, 'wrangler.toml');
 const deployConfig = join(root, 'worker', '.tmp', 'wrangler-deploy.toml');
 const deploySecretsFile = join(root, 'worker', '.tmp', 'wrangler-secrets.json');
+const agentAssetsDir = join(root, 'frontend', 'dist', 'agent-assets');
 const requiredSecrets = ['JWT_SECRET'];
-const supabaseSecretNames = ['SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY'];
 const deployArgs = process.argv.slice(2);
 const isDryRun = deployArgs.includes('--dry-run');
 const keepsExistingVars = deployArgs.includes('--keep-vars');
@@ -36,26 +36,10 @@ function fail(message) {
   process.exit(1);
 }
 
-function resolveSupabaseUrl({ allowDryRunFallback = false } = {}) {
-  const envUrl = process.env.SUPABASE_URL?.trim();
-  const source = readFileSync(sourceConfig, 'utf8');
-  const configUrl = source.match(/SUPABASE_URL\s*=\s*"([^"]+)"/i)?.[1]?.trim() || '';
-  const url = envUrl || configUrl;
-  if (!url || /PROJECT_REF/i.test(url)) {
-    if (allowDryRunFallback) return 'https://dry-run.supabase.co';
-    fail('SUPABASE_URL must be set to a real Supabase project URL before deploying.');
-  }
-  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(url)) {
-    fail('SUPABASE_URL must be set to a real Supabase project URL before deploying.');
-  }
-  return url.replace(/\/$/, '');
-}
-
 function writeDeployConfig() {
   const source = readFileSync(sourceConfig, 'utf8');
-  const supabaseUrl = resolveSupabaseUrl({ allowDryRunFallback: isDryRun });
   const commit = currentGitCommit();
-  let generated = source.replace(/SUPABASE_URL\s*=\s*"[^"]*"/, `SUPABASE_URL = "${supabaseUrl}"`);
+  let generated = source;
   generated = /\nCURRENT_GIT_COMMIT\s*=/.test(generated)
     ? generated.replace(/CURRENT_GIT_COMMIT\s*=\s*"[^"]*"/, `CURRENT_GIT_COMMIT = "${commit}"`)
     : generated.replace(/(\[vars\]\s*)/, `$1\nCURRENT_GIT_COMMIT = "${commit}"\n`);
@@ -66,9 +50,16 @@ function writeDeployConfig() {
   writeFileSync(deployConfig, generated);
 }
 
+function copyAgentInstallAssets() {
+  mkdirSync(agentAssetsDir, { recursive: true });
+  for (const file of ['install.sh', 'install-linux.sh', 'install-windows.ps1']) {
+    copyFileSync(join(root, 'agent', file), join(agentAssetsDir, file));
+  }
+}
+
 function writeDeploySecretsFile() {
   const secrets = Object.fromEntries(
-    [...requiredSecrets, ...supabaseSecretNames]
+    requiredSecrets
       .map(name => [name, process.env[name]?.trim() || ''])
       .filter(([, value]) => value),
   );
@@ -77,9 +68,6 @@ function writeDeploySecretsFile() {
   const missing = requiredSecrets.filter(name => !secrets[name]);
   if (missing.length) {
     fail(`Missing required Worker secrets in build environment: ${missing.join(', ')}`);
-  }
-  if (!supabaseSecretNames.some(name => secrets[name])) {
-    fail('Missing required Worker secret in build environment: SUPABASE_SECRET_KEY');
   }
 
   mkdirSync(dirname(deploySecretsFile), { recursive: true });
@@ -105,9 +93,6 @@ function checkSecrets() {
   if (missing.length) {
     fail(`Missing required Worker secrets: ${missing.join(', ')}\nSet them with: npx wrangler secret put <NAME>`);
   }
-  if (!supabaseSecretNames.some(name => names.has(name))) {
-    fail('Missing required Worker secret: SUPABASE_SECRET_KEY\nSet it with: npx wrangler secret put SUPABASE_SECRET_KEY');
-  }
 }
 
 function buildWranglerDeployArgs() {
@@ -117,6 +102,7 @@ function buildWranglerDeployArgs() {
 }
 
 writeDeployConfig();
+copyAgentInstallAssets();
 const hasDeploySecretsFile = writeDeploySecretsFile();
 
 if (isDryRun) {

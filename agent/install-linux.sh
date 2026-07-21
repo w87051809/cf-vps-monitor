@@ -25,7 +25,8 @@ YES="0"
 KEEP_FILES="0"
 INSTALL_GHPROXY=""
 PROXY=""
-CF_MONITOR_REPOSITORY="kadidalax/cf-vps-monitor"
+CF_MONITOR_REPOSITORY="w87051809/cf-vps-monitor"
+CF_MONITOR_BINARY_FALLBACK_REPOSITORY="kadidalax/cf-vps-monitor"
 CF_MONITOR_BRANCH="main"
 CF_MONITOR_RELEASE_TAG=""
 CF_MONITOR_RELEASE_BASE="https://github.com/${CF_MONITOR_REPOSITORY}/releases/latest/download"
@@ -36,7 +37,11 @@ NIC_EXCLUDE=""
 DISABLE_WEB_SSH="0"
 DISABLE_AUTO_UPDATE="0"
 IGNORE_UNSAFE_CERT="0"
-PLATFORM_OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+PLATFORM_OS="$(uname -s 2>/dev/null || echo linux)"
+case "$PLATFORM_OS" in
+  Linux|linux|Linlx|linlx|GNU/Linux|gnu/linux) PLATFORM_OS="linux" ;;
+  Darwin|darwin) PLATFORM_OS="darwin" ;;
+esac
 
 usage() {
   cat <<'EOF'
@@ -139,7 +144,7 @@ download_file() {
   local output="$2"
   if [[ "$DRY_RUN" == "1" ]]; then
     if command -v curl >/dev/null 2>&1; then
-      local curl_args=(-fsSL --retry 3 -o "$output")
+      local curl_args=(-fsSL --connect-timeout 20 --max-time 180 --retry 3 -o "$output")
       if [[ -n "$PROXY" ]]; then
         curl_args+=(--proxy "$PROXY")
       fi
@@ -147,7 +152,7 @@ download_file() {
       printf ' %q' "${curl_args[@]}" "$url"
       printf '\n'
     elif command -v wget >/dev/null 2>&1; then
-      local wget_args=(-O "$output")
+      local wget_args=(-T 20 -t 3 -O "$output")
       if [[ -n "$PROXY" ]]; then
         wget_args+=(--execute "use_proxy=yes" --execute "http_proxy=$PROXY" --execute "https_proxy=$PROXY")
       fi
@@ -161,13 +166,13 @@ download_file() {
   fi
 
   if command -v curl >/dev/null 2>&1; then
-    local curl_args=(-fsSL --retry 3 -o "$output")
+    local curl_args=(-fsSL --connect-timeout 20 --max-time 180 --retry 3 -o "$output")
     if [[ -n "$PROXY" ]]; then
       curl_args+=(--proxy "$PROXY")
     fi
     curl "${curl_args[@]}" "$url"
   elif command -v wget >/dev/null 2>&1; then
-    local wget_args=(-O "$output")
+    local wget_args=(-T 20 -t 3 -O "$output")
     if [[ -n "$PROXY" ]]; then
       wget_args+=(--execute "use_proxy=yes" --execute "http_proxy=$PROXY" --execute "https_proxy=$PROXY")
     fi
@@ -223,18 +228,18 @@ resolve_build_dir() {
 detect_binary_filename() {
   local os
   local arch
-  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-  arch="$(uname -m | tr '[:upper:]' '[:lower:]')"
+  os="$(uname -s 2>/dev/null || echo linux)"
+  arch="$(uname -m 2>/dev/null || echo amd64)"
 
   case "$os" in
-    linux) os="linux" ;;
-    darwin) os="darwin" ;;
+    Linux|linux|Linlx|linlx|GNU/Linux|gnu/linux) os="linux" ;;
+    Darwin|darwin) os="darwin" ;;
     *) echo "Unsupported OS for prebuilt agent: $os" >&2; exit 1 ;;
   esac
 
   case "$arch" in
-    x86_64|amd64) arch="amd64" ;;
-    aarch64|arm64) arch="arm64" ;;
+    x86_64|amd64|AMD64) arch="amd64" ;;
+    aarch64|arm64|ARM64) arch="arm64" ;;
     *) echo "Unsupported CPU architecture for prebuilt agent: $arch" >&2; exit 1 ;;
   esac
 
@@ -262,6 +267,39 @@ default_binary_url() {
 
 default_checksum_url() {
   local base="${BINARY_BASE_URL:-$CF_MONITOR_RELEASE_BASE}"
+  printf '%s/SHA256SUMS' "${base%/}"
+}
+
+default_panel_binary_base() {
+  if [[ -z "$SERVER" ]]; then
+    printf ''
+    return
+  fi
+  case "$SERVER" in
+    https://*|http://localhost*|http://127.0.0.1*|http://[[]::1[]]*) printf '%s/agent/bin' "${SERVER%/}" ;;
+    *) printf '' ;;
+  esac
+}
+
+fallback_release_base() {
+  if [[ -z "$CF_MONITOR_RELEASE_TAG" ]]; then
+    printf 'https://github.com/%s/releases/latest/download' "$CF_MONITOR_BINARY_FALLBACK_REPOSITORY"
+  else
+    printf 'https://github.com/%s/releases/download/%s' "$CF_MONITOR_BINARY_FALLBACK_REPOSITORY" "$CF_MONITOR_RELEASE_TAG"
+  fi
+}
+
+fallback_binary_url() {
+  local filename
+  local base
+  filename="$(detect_binary_filename)" || exit 1
+  base="$(fallback_release_base)"
+  printf '%s/%s' "${base%/}" "$filename"
+}
+
+fallback_checksum_url() {
+  local base
+  base="$(fallback_release_base)"
   printf '%s/SHA256SUMS' "${base%/}"
 }
 
@@ -385,6 +423,14 @@ ensure_agent_user() {
     exit 1
   fi
   useradd --system --no-create-home --shell /usr/sbin/nologin --user-group "$user"
+}
+
+stop_existing_agent() {
+  if is_macos; then
+    run launchctl bootout system "$PLIST_FILE" || true
+    return
+  fi
+  run systemctl stop "$SERVICE_NAME" || true
 }
 
 while [[ $# -gt 0 ]]; do
@@ -538,6 +584,9 @@ if [[ -n "$BINARY" ]]; then
   WORK_BIN="$BINARY"
 else
   if [[ -z "$BINARY_URL" && "$BUILD_FROM_SOURCE" != "1" ]]; then
+    if [[ -z "$BINARY_BASE_URL" && -z "$CF_MONITOR_RELEASE_TAG" ]]; then
+      BINARY_BASE_URL="$(default_panel_binary_base)"
+    fi
     DEFAULT_BINARY_URL="$(default_binary_url)" || exit 1
     if [[ -n "$BINARY_BASE_URL" ]]; then
       BINARY_URL="$DEFAULT_BINARY_URL"
@@ -565,6 +614,22 @@ if [[ -n "$BINARY_URL" ]]; then
     if download_file "$BINARY_URL" "$WORK_BIN"; then
       verify_binary_checksum "$WORK_BIN" "$(basename "$BINARY_URL")" "$CHECKSUM_URL"
       chmod 0755 "$WORK_BIN"
+    elif [[ "$AUTO_BINARY_URL" == "1" && -z "$BINARY_BASE_URL" && "$CF_MONITOR_REPOSITORY" != "$CF_MONITOR_BINARY_FALLBACK_REPOSITORY" ]]; then
+      echo "Prebuilt agent binary was not found at ${BINARY_URL}; trying fallback release assets." >&2
+      rm -f "$WORK_BIN"
+      WORK_BIN="$(mktemp /tmp/cf-vps-monitor-agent.XXXXXX)"
+      BINARY_URL="$(with_github_proxy "$(fallback_binary_url)")"
+      CHECKSUM_URL="$(with_github_proxy "$(fallback_checksum_url)")"
+      if download_file "$BINARY_URL" "$WORK_BIN"; then
+        verify_binary_checksum "$WORK_BIN" "$(basename "$BINARY_URL")" "$CHECKSUM_URL"
+        chmod 0755 "$WORK_BIN"
+      else
+        echo "Fallback agent binary was not found at ${BINARY_URL}; falling back to source build." >&2
+        rm -f "$WORK_BIN"
+        WORK_BIN=""
+        BINARY_URL=""
+        BUILD_FROM_SOURCE="1"
+      fi
     elif [[ "$AUTO_BINARY_URL" == "1" ]]; then
       echo "Prebuilt agent binary was not found at ${BINARY_URL}; falling back to source build." >&2
       rm -f "$WORK_BIN"
@@ -598,6 +663,7 @@ if ! is_macos; then
   ensure_agent_user
 fi
 run mkdir -p "$INSTALL_DIR"
+stop_existing_agent
 run install -m 0755 "$WORK_BIN" "$INSTALL_DIR/cf-vps-monitor-agent"
 run mkdir -p "$STATE_DIR"
 if ! is_macos; then

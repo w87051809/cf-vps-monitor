@@ -50,7 +50,7 @@ export function normalizeMfaCode(value: string, method: MfaMethod): string | nul
 
 export function formatRecoveryCodesText(codes: string[], username: string): string {
   return [
-    'CF VPS Monitor 双重身份验证恢复码',
+    '探针面板 双重身份验证恢复码',
     `账户: ${username}`,
     '',
     '每个恢复码只能使用一次。请离线安全保存。',

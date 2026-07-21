@@ -15,6 +15,8 @@ assert.deepEqual(
 );
 assert.equal(normalizeSettingValue('update_repository_url', 'https://github.com/example/cf-vps-monitor/tree/main').ok, false);
 assert.deepEqual(normalizeSettingValue('notification_method', 'webhook'), { ok: true, value: 'webhook' });
+assert.deepEqual(normalizeSettingValue('notification_method', 'telegram,email,webhook'), { ok: true, value: 'telegram,email,webhook' });
+assert.deepEqual(normalizeSettingValue('notification_method', 'telegram,qq'), { ok: true, value: 'telegram,qq' });
 assert.deepEqual(normalizeSettingValue('webhook_format', 'discord'), { ok: true, value: 'discord' });
 assert.deepEqual(normalizeSettingValue('webhook_format', 'custom'), { ok: true, value: 'custom' });
 assert.deepEqual(normalizeSettingValue('webhook_format', 'dingtalk'), { ok: true, value: 'dingtalk' });
@@ -33,6 +35,15 @@ assert.equal(normalizeSettingValue('webhook_headers_json', '[]').ok, false);
 assert.equal(normalizeSettingValue('webhook_headers_json', '{"X-Test":1}').ok, false);
 assert.equal(normalizeSettingValue('webhook_content_type', 'application/json; charset=utf-8').ok, true);
 assert.equal(normalizeSettingValue('webhook_content_type', 'application/json\r\nX-Bad: 1').ok, false);
+assert.deepEqual(
+  normalizeSettingValue('qq_notification_url', 'https://qq.1089.ltd/api/webqq/messages'),
+  { ok: true, value: 'https://qq.1089.ltd/api/webqq/messages' },
+);
+assert.deepEqual(normalizeSettingValue('qq_notification_target_type', 'private'), { ok: true, value: 'private' });
+assert.deepEqual(normalizeSettingValue('qq_notification_target_type', 'group'), { ok: true, value: 'group' });
+assert.deepEqual(normalizeSettingValue('qq_notification_target_id', '87051809'), { ok: true, value: '87051809' });
+assert.equal(normalizeSettingValue('qq_notification_target_id', 'abc').ok, false);
+assert.deepEqual(normalizeSettingValue('qq_notification_retry_count', '2'), { ok: true, value: '2' });
 assert.deepEqual(normalizeSettingValue('update_mode', 'fork'), { ok: false, error: '未知设置: update_mode' });
 
 const publicSettings = buildPublicSettings({

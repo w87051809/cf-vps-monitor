@@ -36,7 +36,7 @@ test('normalizes TOTP and recovery-code input without accepting malformed values
 
 test('formats recovery codes for a one-time text download', () => {
   const text = formatRecoveryCodesText(['AAAA-BBBB-CCCC-DDDD-EEEE-FFFF'], 'admin');
-  assert.match(text, /CF VPS Monitor/);
+  assert.match(text, /探针面板/);
   assert.match(text, /admin/);
   assert.match(text, /AAAA-BBBB-CCCC-DDDD-EEEE-FFFF/);
 });

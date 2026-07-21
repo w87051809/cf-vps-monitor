@@ -29,10 +29,12 @@ import { getCloudflareClientIp } from '../utils/request-ip';
 import { validatePingTaskInput } from '../utils/ping-task';
 import { generateAgentToken, validateClientCreateInput, validateClientUpdateInput } from '../utils/client';
 import { validateExpiryNotificationInput, validateLoadNotificationInput, validateOfflineNotificationInput } from '../utils/notification';
+import { normalizeNotificationMethod, parseNotificationChannels } from '../utils/notification-channels';
 import { NOTIFICATION_DISPATCH_SETTING_KEYS, dispatchNotification } from '../utils/notification-dispatch';
 import { TELEGRAM_MESSAGE_MAX_CHARS } from '../utils/telegram';
 import { EMAIL_MESSAGE_MAX_CHARS } from '../utils/email';
 import { WEBHOOK_MESSAGE_MAX_CHARS } from '../utils/webhook';
+import { QQ_MESSAGE_MAX_CHARS } from '../utils/qq';
 import { sanitizeSetupDiagnosticDetail } from '../utils/setup-diagnostics';
 import { checkWebsiteMonitorHttp, validateWebsiteMonitorInput } from '../utils/website-monitor';
 import { readLiveSnapshot, readRateLimitResult } from '../utils/do-response';
@@ -41,8 +43,9 @@ import { bytesToBase64 } from '../utils/theme-package';
 import { APP_VERSION } from '../utils/app-version';
 import {
   formatAppVersion,
-  repositoryUrlFromRepositoryUrl,
+  isUpdateAvailable,
   normalizeGitSha,
+  repositoryUrlFromRepositoryUrl,
   shortGitSha,
   type UpdateCheckResult,
 } from '../utils/update-check';
@@ -87,7 +90,7 @@ const ADMIN_PING_TASKS_EDGE_CACHE_SECONDS = 15;
 const ADMIN_SETTINGS_SCOPE_CACHE_MS = 10_000;
 const HEALTH_CACHE_MS = 30_000;
 const ALLOWED_CLIENT_IDS_CACHE_MS = 30_000;
-const OFFICIAL_UPDATE_REPOSITORY = 'kadidalax/cf-vps-monitor';
+const OFFICIAL_UPDATE_REPOSITORY = 'w87051809/cf-vps-monitor';
 const OFFICIAL_UPDATE_BRANCH = 'main';
 const UPDATE_CHECK_CACHE_MS = 10 * 60 * 1000;
 const updateCheckCache = new Map<string, { expiresAt: number; value: UpdateCheckResult }>();
@@ -159,6 +162,11 @@ const SETTINGS_SCOPE_KEYS = {
     'webhook_username',
     'webhook_password',
     'webhook_retry_count',
+    'qq_notification_url',
+    'qq_notification_token',
+    'qq_notification_target_type',
+    'qq_notification_target_id',
+    'qq_notification_retry_count',
     'enable_ip_change_notification',
     'offline_notify_never_reported',
   ],
@@ -877,9 +885,6 @@ function runSecretProbe(env: Bindings, checkedAt: string): HealthEvent {
   if (new TextEncoder().encode(env.JWT_SECRET?.trim() || '').length < MIN_JWT_SECRET_BYTES) {
     missing.push('JWT_SECRET must be at least 32 bytes');
   }
-  if (!(env.SUPABASE_SECRET_KEY?.trim() || env.SUPABASE_SERVICE_ROLE_KEY?.trim())) {
-    missing.push('SUPABASE_SECRET_KEY is required');
-  }
   if (missing.length > 0) {
     return healthEvent('secret_probe', 'error', missing.join('; '), checkedAt);
   }
@@ -891,16 +896,16 @@ async function buildHealthCheck(c: AdminContext, deep: boolean, cacheState: Heal
   const checkedAt = new Date().toISOString();
   const database = getDatabase(c.env);
   const components: Record<string, HealthEvent | null> = {};
-  const databaseProbe = healthEvent('database_connection_probe', 'ok', 'Supabase HTTP API/RPC configured', checkedAt);
+  const databaseProbe = healthEvent('database_connection_probe', 'ok', 'Cloudflare D1 configured', checkedAt);
   if (databaseProbe.status !== 'error') {
     Object.assign(components, await readHealthEvents(database));
   }
   components.database_connection_probe = databaseProbe;
 
   if (databaseProbe.status !== 'error') {
-    components.database_role_probe = healthEvent('database_role_probe', 'disabled', 'Direct database role probe is not used in Supabase HTTP API mode', checkedAt);
+    components.database_role_probe = healthEvent('database_role_probe', 'disabled', 'D1 uses the Worker DB binding directly', checkedAt);
     components.agent_token_hygiene_probe = await runAgentTokenHygieneProbe(database, checkedAt);
-    components.schema_probe = healthEvent('schema_probe', 'disabled', 'Schema probe is handled by Supabase migrations, not Worker runtime bootstrap', checkedAt);
+    components.schema_probe = healthEvent('schema_probe', 'ok', 'Cloudflare D1 schema is managed by Worker setup', checkedAt);
   }
 
   components.cron_startup_probe = readScheduledDatabaseStartupHealth(checkedAt);
@@ -1341,7 +1346,7 @@ async function buildCommitUpdateResult(
     latest_version: formatAppVersion(latestVersion),
     current_commit: shortGitSha(currentCommit),
     latest_commit: shortGitSha(latestCommit),
-    has_update: Boolean(latestCommit) && currentCommit !== latestCommit,
+    has_update: isUpdateAvailable(APP_VERSION, latestVersion, currentCommit, latestCommit),
     source_url: updateString(commit.html_url) || `https://github.com/${repository}/commits/${OFFICIAL_UPDATE_BRANCH}`,
     upgrade_url: repositoryUrl,
     repository_url: repositoryUrl,
@@ -2190,11 +2195,13 @@ adminRoutes.get('/settings', async (c) => {
       scoped.webhook_headers_set = settings.webhook_headers_json ? 'true' : 'false';
       scoped.webhook_password_set = settings.webhook_password ? 'true' : 'false';
       scoped.webhook_url_host = webhookUrlHost(settings.webhook_url);
+      scoped.qq_notification_token_set = settings.qq_notification_token ? 'true' : 'false';
       delete scoped['email_smtp_password'];
       delete scoped['webhook_url'];
       delete scoped['webhook_secret'];
       delete scoped['webhook_headers_json'];
       delete scoped['webhook_password'];
+      delete scoped['qq_notification_token'];
     }
     if (!fresh) adminSettingsScopeCache.set(scope, { value: scoped, expiresAt: Date.now() + ADMIN_SETTINGS_SCOPE_CACHE_MS });
     return c.json(scoped);
@@ -2218,6 +2225,7 @@ adminRoutes.post('/settings', async (c) => {
     delete settingsBody.webhook_headers_set;
     delete settingsBody.webhook_password_set;
     delete settingsBody.webhook_url_host;
+    delete settingsBody.qq_notification_token_set;
     const clearWebhookUrl = settingsBody.webhook_url_clear === true || settingsBody.webhook_url_clear === 'true';
     const clearWebhookSecret = settingsBody.webhook_secret_clear === true || settingsBody.webhook_secret_clear === 'true';
     delete settingsBody.webhook_url_clear;
@@ -2231,6 +2239,7 @@ adminRoutes.post('/settings', async (c) => {
     else if (settingsBody.webhook_secret === '') delete settingsBody.webhook_secret;
     if (settingsBody.webhook_headers_json === '') delete settingsBody.webhook_headers_json;
     if (settingsBody.webhook_password === '') delete settingsBody.webhook_password;
+    if (settingsBody.qq_notification_token === '') delete settingsBody.qq_notification_token;
     const normalized = sanitizeSettingsForStorage(settingsBody);
     if (!normalized.ok) {
       return c.json({ error: '设置校验失败', details: normalized.errors }, 400);
@@ -3046,32 +3055,39 @@ adminRoutes.post('/test/sendMessage', async (c) => {
     const body = parsed.body;
     const message = typeof body.message === 'string' && body.message.trim() !== ''
       ? body.message.trim()
-      : 'CF VPS Monitor 测试消息';
+      : '探针面板 测试消息';
     const requestedChannel = typeof body.channel === 'string' && body.channel.trim() !== ''
       ? body.channel.trim()
       : undefined;
     const adminSettings = buildAdminSettings(await db.getSettingsByKeys(database, [...NOTIFICATION_DISPATCH_SETTING_KEYS]));
-    selectedChannel = requestedChannel || adminSettings.notification_method;
-    if (!['telegram', 'email', 'webhook', 'none'].includes(selectedChannel)) {
+    selectedChannel = normalizeNotificationMethod(requestedChannel || adminSettings.notification_method) || '';
+    if (!selectedChannel) {
       return c.json({ error: '未知通知方式' }, 400);
     }
-    const maxMessageChars = selectedChannel === 'email'
-      ? EMAIL_MESSAGE_MAX_CHARS
-      : selectedChannel === 'webhook'
-        ? WEBHOOK_MESSAGE_MAX_CHARS
-        : TELEGRAM_MESSAGE_MAX_CHARS;
+    const selectedChannels = parseNotificationChannels(selectedChannel);
+    const maxMessageChars = Math.min(...(selectedChannels.length > 0
+      ? selectedChannels.map(channel => channel === 'email'
+        ? EMAIL_MESSAGE_MAX_CHARS
+        : channel === 'webhook'
+          ? WEBHOOK_MESSAGE_MAX_CHARS
+          : channel === 'qq'
+            ? QQ_MESSAGE_MAX_CHARS
+            : TELEGRAM_MESSAGE_MAX_CHARS)
+      : [TELEGRAM_MESSAGE_MAX_CHARS]));
     if (selectedChannel !== 'none' && message.length > maxMessageChars) {
       return c.json({ error: `测试消息不能超过 ${maxMessageChars} 个字符` }, 400);
     }
 
-    if (selectedChannel === 'email' && typeof body.test_recipient === 'string' && body.test_recipient.trim() !== '') {
+    adminSettings.notification_method = selectedChannel;
+    if (selectedChannels.includes('email') && typeof body.test_recipient === 'string' && body.test_recipient.trim() !== '') {
       adminSettings.email_smtp_recipients = body.test_recipient.trim();
     }
+    const forcedChannel = requestedChannel && selectedChannels.length === 1 ? selectedChannels[0] : undefined;
     const sent = await dispatchNotification(database, adminSettings, {
-      subject: selectedChannel === 'email' ? 'CF VPS Monitor 测试邮件' : 'CF VPS Monitor 测试消息',
+      subject: forcedChannel === 'email' ? '探针面板 测试邮件' : '探针面板 测试消息',
       body: message,
     }, {
-      channel: selectedChannel,
+      ...(forcedChannel ? { channel: forcedChannel } : {}),
       auditUser: c.get('username') || 'system',
       deps: { recordHealth: bestEffortRecordHealthEvent },
     });
@@ -3083,7 +3099,7 @@ adminRoutes.post('/test/sendMessage', async (c) => {
     }
     return c.json({ success: true });
   } catch (e: unknown) {
-    const component = selectedChannel === 'email' || selectedChannel === 'webhook' || selectedChannel === 'telegram'
+    const component = selectedChannel === 'email' || selectedChannel === 'webhook' || selectedChannel === 'telegram' || selectedChannel === 'qq'
       ? selectedChannel
       : 'notification';
     await bestEffortRecordHealthEvent(

@@ -26,7 +26,8 @@ YES="0"
 KEEP_FILES="0"
 INSTALL_GHPROXY=""
 PROXY=""
-CF_MONITOR_REPOSITORY="kadidalax/cf-vps-monitor"
+CF_MONITOR_REPOSITORY="w87051809/cf-vps-monitor"
+CF_MONITOR_BINARY_FALLBACK_REPOSITORY="kadidalax/cf-vps-monitor"
 CF_MONITOR_BRANCH="main"
 CF_MONITOR_RELEASE_TAG=""
 CF_MONITOR_RELEASE_BASE="https://github.com/${CF_MONITOR_REPOSITORY}/releases/latest/download"
@@ -35,7 +36,12 @@ MOUNT_EXCLUDE=""
 NIC_INCLUDE=""
 NIC_EXCLUDE=""
 AGENT_USER="cf-vps-monitor-agent"
-OS_NAME="$(uname -s | tr '[:upper:]' '[:lower:]')"
+OS_NAME="$(uname -s 2>/dev/null || echo linux)"
+case "$OS_NAME" in
+  Linux|linux|Linlx|linlx|GNU/Linux|gnu/linux) OS_NAME="linux" ;;
+  Darwin|darwin) OS_NAME="darwin" ;;
+  FreeBSD|freebsd) OS_NAME="freebsd" ;;
+esac
 
 die() {
   echo "$*" >&2
@@ -163,15 +169,15 @@ download_file() {
   fi
   if has curl; then
     if [ -n "$PROXY" ]; then
-      curl -fsSL --retry 3 --proxy "$PROXY" -o "$output" "$url"
+      curl -fsSL --connect-timeout 20 --max-time 180 --retry 3 --proxy "$PROXY" -o "$output" "$url"
     else
-      curl -fsSL --retry 3 -o "$output" "$url"
+      curl -fsSL --connect-timeout 20 --max-time 180 --retry 3 -o "$output" "$url"
     fi
   elif has wget; then
     if [ -n "$PROXY" ]; then
-      http_proxy="$PROXY" https_proxy="$PROXY" wget -O "$output" "$url"
+      http_proxy="$PROXY" https_proxy="$PROXY" wget -T 20 -t 3 -O "$output" "$url"
     else
-      wget -O "$output" "$url"
+      wget -T 20 -t 3 -O "$output" "$url"
     fi
   elif has fetch; then
     if [ -n "$PROXY" ]; then
@@ -220,6 +226,36 @@ copy_binary_to() {
   fi
 }
 
+stop_existing_agent() {
+  case "${SERVICE_MODE:-}" in
+    openwrt)
+      if [ -x "/etc/init.d/${SERVICE_NAME}" ]; then
+        run "/etc/init.d/${SERVICE_NAME}" stop || true
+      fi
+      ;;
+    systemd)
+      if has systemctl; then
+        run systemctl stop "$SERVICE_NAME" || true
+      fi
+      ;;
+    openrc)
+      if has rc-service; then
+        run rc-service "$SERVICE_NAME" stop || true
+      fi
+      ;;
+    launchctl)
+      if [ -n "${PLIST_FILE:-}" ]; then
+        run launchctl bootout system "$PLIST_FILE" || true
+      fi
+      ;;
+    user)
+      if [ -x "${INSTALL_DIR}/stop.sh" ]; then
+        run "${INSTALL_DIR}/stop.sh" || true
+      fi
+      ;;
+  esac
+}
+
 sanitize_instance_id() {
   raw="${1:-default}"
   cleaned="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_.-]+/-/g; s/^-+//; s/-+$//')"
@@ -258,6 +294,8 @@ detect_service_mode() {
     linux)
       if has systemctl; then
         printf 'systemd'
+      elif [ -f /etc/openwrt_release ] || { [ -d /lib/functions ] && [ -d /etc/rc.d ]; }; then
+        printf 'openwrt'
       elif has rc-service || [ -d /etc/init.d ]; then
         printf 'openrc'
       elif [ "$install_mode" = "auto" ]; then
@@ -288,14 +326,16 @@ set_release_base() {
 
 detect_binary_filename() {
   os="$OS_NAME"
-  arch="$(uname -m | tr '[:upper:]' '[:lower:]')"
+  arch="$(uname -m 2>/dev/null || echo amd64)"
   case "$os" in
-    linux|darwin|freebsd) ;;
+    Linux|linux|Linlx|linlx|GNU/Linux|gnu/linux) os="linux" ;;
+    Darwin|darwin) os="darwin" ;;
+    FreeBSD|freebsd) os="freebsd" ;;
     *) die "Unsupported OS for prebuilt agent: ${os}" ;;
   esac
   case "$arch" in
-    x86_64|amd64) arch="amd64" ;;
-    aarch64|arm64) arch="arm64" ;;
+    x86_64|amd64|AMD64) arch="amd64" ;;
+    aarch64|arm64|ARM64) arch="arm64" ;;
     *) die "Unsupported CPU architecture for prebuilt agent: ${arch}" ;;
   esac
   printf 'cf-vps-monitor-agent-%s-%s' "$os" "$arch"
@@ -309,6 +349,36 @@ default_binary_url() {
 
 default_checksum_url() {
   base="${BINARY_BASE_URL:-$CF_MONITOR_RELEASE_BASE}"
+  printf '%s/SHA256SUMS' "${base%/}"
+}
+
+default_panel_binary_base() {
+  [ -n "$SERVER" ] || {
+    printf ''
+    return
+  }
+  case "$SERVER" in
+    https://*|http://localhost*|http://127.0.0.1*|http://[[]::1[]]*) printf '%s/agent/bin' "${SERVER%/}" ;;
+    *) printf '' ;;
+  esac
+}
+
+fallback_release_base() {
+  if [ -z "$CF_MONITOR_RELEASE_TAG" ]; then
+    printf 'https://github.com/%s/releases/latest/download' "$CF_MONITOR_BINARY_FALLBACK_REPOSITORY"
+  else
+    printf 'https://github.com/%s/releases/download/%s' "$CF_MONITOR_BINARY_FALLBACK_REPOSITORY" "$CF_MONITOR_RELEASE_TAG"
+  fi
+}
+
+fallback_binary_url() {
+  filename="$(detect_binary_filename)"
+  base="$(fallback_release_base)"
+  printf '%s/%s' "${base%/}" "$filename"
+}
+
+fallback_checksum_url() {
+  base="$(fallback_release_base)"
   printf '%s/SHA256SUMS' "${base%/}"
 }
 
@@ -417,6 +487,12 @@ apply_defaults() {
       ENV_FILE="/etc/conf.d/${SERVICE_NAME}"
       INIT_FILE="/etc/init.d/${SERVICE_NAME}"
       ;;
+    openwrt)
+      [ -n "$INSTALL_DIR" ] || INSTALL_DIR="/opt/cf-vps-monitor/${BASE_ID}"
+      STATE_DIR="${INSTALL_DIR}/state"
+      ENV_FILE="/etc/${SERVICE_NAME}.env"
+      INIT_FILE="/etc/init.d/${SERVICE_NAME}"
+      ;;
     systemd)
       [ -n "$INSTALL_DIR" ] || INSTALL_DIR="/opt/cf-vps-monitor/${BASE_ID}"
       STATE_DIR="${INSTALL_DIR}/state"
@@ -479,6 +555,9 @@ prepare_binary() {
   fi
 
   if [ -z "$BINARY_URL" ] && [ "$BUILD_FROM_SOURCE" != "1" ]; then
+    if [ -z "$BINARY_BASE_URL" ] && [ -z "$CF_MONITOR_RELEASE_TAG" ]; then
+      BINARY_BASE_URL="$(default_panel_binary_base)"
+    fi
     DEFAULT_BINARY_URL="$(default_binary_url)"
     if [ -n "$BINARY_BASE_URL" ]; then
       BINARY_URL="$DEFAULT_BINARY_URL"
@@ -500,6 +579,22 @@ prepare_binary() {
       if download_file "$BINARY_URL" "$WORK_BIN"; then
         verify_binary_checksum "$WORK_BIN" "$(basename "$BINARY_URL")" "$CHECKSUM_URL"
         chmod 0755 "$WORK_BIN"
+      elif [ "$AUTO_BINARY_URL" = "1" ] && [ -z "$BINARY_BASE_URL" ] && [ "$CF_MONITOR_REPOSITORY" != "$CF_MONITOR_BINARY_FALLBACK_REPOSITORY" ]; then
+        echo "Prebuilt agent binary was not found at ${BINARY_URL}; trying fallback release assets." >&2
+        rm -f "$WORK_BIN"
+        WORK_BIN="$(mktemp "${TMPDIR:-/tmp}/cf-vps-monitor-agent.XXXXXX")"
+        BINARY_URL="$(with_github_proxy "$(fallback_binary_url)")"
+        CHECKSUM_URL="$(with_github_proxy "$(fallback_checksum_url)")"
+        if download_file "$BINARY_URL" "$WORK_BIN"; then
+          verify_binary_checksum "$WORK_BIN" "$(basename "$BINARY_URL")" "$CHECKSUM_URL"
+          chmod 0755 "$WORK_BIN"
+        else
+          echo "Fallback agent binary was not found at ${BINARY_URL}; falling back to source build." >&2
+          rm -f "$WORK_BIN"
+          WORK_BIN=""
+          BINARY_URL=""
+          BUILD_FROM_SOURCE="1"
+        fi
       elif [ "$AUTO_BINARY_URL" = "1" ]; then
         echo "Prebuilt agent binary was not found at ${BINARY_URL}; falling back to source build." >&2
         rm -f "$WORK_BIN"
@@ -530,6 +625,7 @@ prepare_binary() {
 install_systemd() {
   ensure_agent_user
   run mkdir -p "$INSTALL_DIR" "$STATE_DIR"
+  stop_existing_agent
   copy_binary_to "$WORK_BIN" "$INSTALL_DIR/cf-vps-monitor-agent"
   run chown -R "$AGENT_USER:$AGENT_USER" "$STATE_DIR"
   write_file "$ENV_FILE" "600" "$(env_content)"
@@ -577,6 +673,7 @@ EOF
 install_openrc() {
   ensure_agent_user
   run mkdir -p "$INSTALL_DIR" "$STATE_DIR" /etc/conf.d /etc/init.d
+  stop_existing_agent
   copy_binary_to "$WORK_BIN" "$INSTALL_DIR/cf-vps-monitor-agent"
   run chown -R "$AGENT_USER:$AGENT_USER" "$STATE_DIR"
   write_file "$ENV_FILE" "600" "$(env_content)"
@@ -614,8 +711,49 @@ EOF
   echo "Note: ICMP ping depends on this system's ping permissions; TCP/HTTP reports are not affected."
 }
 
+install_openwrt() {
+  run mkdir -p "$INSTALL_DIR" "$STATE_DIR" /etc/init.d
+  stop_existing_agent
+  copy_binary_to "$WORK_BIN" "$INSTALL_DIR/cf-vps-monitor-agent"
+  write_file "$ENV_FILE" "600" "$(env_content)"
+  RUNNER_CONTENT=$(cat <<EOF
+#!/bin/sh
+set -eu
+. $(shell_quote "$ENV_FILE")
+export CF_MONITOR_SERVER CF_MONITOR_TOKEN CF_MONITOR_NAME CF_MONITOR_MODE
+export CF_MONITOR_MOUNT_INCLUDE CF_MONITOR_MOUNT_EXCLUDE CF_MONITOR_NIC_INCLUDE CF_MONITOR_NIC_EXCLUDE
+export CF_MONITOR_TRAFFIC_RESET_DAY CF_MONITOR_TRAFFIC_STATE_FILE
+exec $(shell_quote "${INSTALL_DIR}/cf-vps-monitor-agent") --interval ${INTERVAL} --ping-interval ${PING_INTERVAL} --traffic-reset-day ${TRAFFIC_RESET_DAY}
+EOF
+)
+  write_file "$RUNNER_FILE" "700" "$RUNNER_CONTENT"
+  INIT_CONTENT=$(cat <<EOF
+#!/bin/sh /etc/rc.common
+START=99
+STOP=10
+USE_PROCD=1
+
+start_service() {
+  procd_open_instance
+  procd_set_param command "${RUNNER_FILE}"
+  procd_set_param respawn 3600 5 5
+  procd_set_param stdout 1
+  procd_set_param stderr 1
+  procd_close_instance
+}
+EOF
+)
+  write_file "$INIT_FILE" "755" "$INIT_CONTENT"
+  run "$INIT_FILE" enable
+  run "$INIT_FILE" restart
+  echo "Installed ${SERVICE_NAME} for OpenWrt/iStoreOS."
+  echo "Status: ${INIT_FILE} status"
+  echo "Logs:   logread -f | grep ${SERVICE_NAME}"
+}
+
 install_launchctl() {
   run mkdir -p "$INSTALL_DIR" "$STATE_DIR"
+  stop_existing_agent
   copy_binary_to "$WORK_BIN" "$INSTALL_DIR/cf-vps-monitor-agent"
   RUNNER_CONTENT=$(cat <<EOF
 #!/bin/sh
@@ -680,6 +818,7 @@ install_user_mode() {
   if [ "$DRY_RUN" != "1" ]; then
     chmod 700 "$INSTALL_DIR" "$CONFIG_DIR" "$STATE_DIR"
   fi
+  stop_existing_agent
   copy_binary_to "$WORK_BIN" "$INSTALL_DIR/cf-vps-monitor-agent"
   write_file "$ENV_FILE" "600" "$(env_content)"
 
@@ -918,7 +1057,7 @@ fi
 validate_common
 
 case "$SERVICE_MODE" in
-  systemd|openrc|launchctl) install_root_dependencies ;;
+  systemd|openrc|openwrt|launchctl) install_root_dependencies ;;
 esac
 
 prepare_binary
@@ -926,6 +1065,7 @@ prepare_binary
 case "$SERVICE_MODE" in
   systemd) install_systemd ;;
   openrc) install_openrc ;;
+  openwrt) install_openwrt ;;
   launchctl) install_launchctl ;;
   user) install_user_mode ;;
   *) die "Unsupported install mode: ${SERVICE_MODE}" ;;

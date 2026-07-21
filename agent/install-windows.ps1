@@ -94,7 +94,8 @@ function Set-InstanceDefaults {
 }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$repository = "kadidalax/cf-vps-monitor"
+$repository = "w87051809/cf-vps-monitor"
+$binaryFallbackRepository = "kadidalax/cf-vps-monitor"
 $branch = "main"
 $autoBinaryUrl = $false
 
@@ -109,6 +110,29 @@ function Resolve-ReleaseBase {
 }
 
 $releaseBase = Resolve-ReleaseBase
+
+function Resolve-FallbackReleaseBase {
+  if ([string]::IsNullOrWhiteSpace($ReleaseTag)) {
+    return "https://github.com/$binaryFallbackRepository/releases/latest/download"
+  }
+  return "https://github.com/$binaryFallbackRepository/releases/download/$ReleaseTag"
+}
+
+function Get-DefaultPanelBinaryBase {
+  if ([string]::IsNullOrWhiteSpace($Server)) {
+    return ""
+  }
+  try {
+    $uri = [Uri]$Server
+  } catch {
+    return ""
+  }
+  $isLocalHttp = $uri.Scheme -eq "http" -and @("localhost", "127.0.0.1", "::1") -contains $uri.Host.ToLowerInvariant()
+  if ($uri.Scheme -ne "https" -and -not $isLocalHttp) {
+    return ""
+  }
+  return $uri.GetLeftPart([UriPartial]::Authority).TrimEnd("/") + "/agent/bin"
+}
 
 function ConvertTo-PowerShellLiteral {
   param([string]$Value)
@@ -174,10 +198,20 @@ function Invoke-DownloadFile {
     return
   }
 
+  try {
+    [Net.ServicePointManager]::SecurityProtocol =
+      [Net.SecurityProtocolType]::Tls12 -bor
+      [Net.SecurityProtocolType]::Tls11 -bor
+      [Net.SecurityProtocolType]::Tls
+  } catch {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+  }
+
   $downloadParams = @{
     Uri = $Url
     UseBasicParsing = $true
     OutFile = $OutFile
+    TimeoutSec = 180
   }
   if (-not [string]::IsNullOrWhiteSpace($Proxy)) {
     $downloadParams.Proxy = $Proxy
@@ -240,6 +274,16 @@ function Get-DefaultChecksumUrl {
   if (-not [string]::IsNullOrWhiteSpace($BinaryBaseUrl)) {
     return $url
   }
+  return Join-GitHubProxy $url
+}
+
+function Get-FallbackBinaryUrl {
+  $url = "$(Resolve-FallbackReleaseBase)/cf-vps-monitor-agent-windows-amd64.exe"
+  return Join-GitHubProxy $url
+}
+
+function Get-FallbackChecksumUrl {
+  $url = "$(Resolve-FallbackReleaseBase)/SHA256SUMS"
   return Join-GitHubProxy $url
 }
 
@@ -404,6 +448,9 @@ $Proxy = Normalize-HttpUrl -Name "-Proxy" -Url $Proxy -AllowPath $false
 $InstallGhproxy = Normalize-HttpUrl -Name "-InstallGhproxy" -Url $InstallGhproxy
 
 if ($BinaryPath -eq "" -and $BinaryUrl -eq "" -and -not $BuildFromSource) {
+  if ([string]::IsNullOrWhiteSpace($BinaryBaseUrl) -and [string]::IsNullOrWhiteSpace($ReleaseTag)) {
+    $BinaryBaseUrl = Get-DefaultPanelBinaryBase
+  }
   $BinaryUrl = Get-DefaultBinaryUrl
   $ChecksumUrl = Get-DefaultChecksumUrl
   $autoBinaryUrl = $true
@@ -414,7 +461,17 @@ if ($BinaryPath -eq "" -and $BinaryUrl -ne "") {
     throw "Custom -BinaryUrl requires -ChecksumUrl for SHA256 verification."
   }
   $downloadOut = Join-Path $env:TEMP "cf-vps-monitor-agent.exe"
-  Invoke-DownloadFile -Url $BinaryUrl -OutFile $downloadOut
+  try {
+    Invoke-DownloadFile -Url $BinaryUrl -OutFile $downloadOut
+  } catch {
+    if (-not $autoBinaryUrl -or -not [string]::IsNullOrWhiteSpace($BinaryBaseUrl) -or $repository -eq $binaryFallbackRepository) {
+      throw
+    }
+    Write-Warning "Prebuilt agent binary was not found at $BinaryUrl; trying fallback release assets."
+    $BinaryUrl = Get-FallbackBinaryUrl
+    $ChecksumUrl = Get-FallbackChecksumUrl
+    Invoke-DownloadFile -Url $BinaryUrl -OutFile $downloadOut
+  }
   Test-DownloadedChecksum -Path $downloadOut -FileName (Split-Path $BinaryUrl -Leaf) -Url $ChecksumUrl
   $BinaryPath = $downloadOut
 }

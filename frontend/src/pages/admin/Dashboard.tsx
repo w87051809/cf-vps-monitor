@@ -452,11 +452,16 @@ function GenerateCommandDialog({ client, open, onOpenChange }: { client: Command
       ghproxy: installOptions.ghproxy,
       scriptRef: installOptions.scriptRef,
     });
+  const [editableCmd, setEditableCmd] = useState('');
+
+  useEffect(() => {
+    setEditableCmd(loadingToken ? '正在获取 Token...' : cmd);
+  }, [cmd, loadingToken]);
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Content className="admin-command-dialog" style={{ maxWidth: 680 }}>
-        <Dialog.Title>生成 CF VPS Monitor Agent 安装命令</Dialog.Title>
+        <Dialog.Title>生成探针面板 Agent 安装命令</Dialog.Title>
         <Dialog.Description size="2" mb="2">节点: {client.name}</Dialog.Description>
         <SegmentedControl.Root value={platform} onValueChange={(v) => setPlatform(v as AgentInstallPlatform)} style={{ marginBottom: 12 }}>
           <SegmentedControl.Item value="unix">Unix 自动检测</SegmentedControl.Item>
@@ -478,9 +483,9 @@ function GenerateCommandDialog({ client, open, onOpenChange }: { client: Command
                 </Select.Content>
               </Select.Root>
             </label>
-            <FieldInput label="GitHub 代理" value={installOptions.ghproxy} onChange={(v) => setOption('ghproxy', v)} placeholder="为空则不使用代理" />
+            <FieldInput label="GitHub 代理" value={installOptions.ghproxy} onChange={(v) => setOption('ghproxy', v)} placeholder="可填你自己的代理，留空不用公共代理" />
             <FieldInput label="下载代理" value={installOptions.downloadProxy} onChange={(v) => setOption('downloadProxy', v)} placeholder="例如 http://127.0.0.1:10808" />
-            <FieldInput label="安装目录" value={installOptions.dir} onChange={(v) => setOption('dir', v)} placeholder={platform === 'windows' ? 'C:\\Program Files\\CF VPS Monitor' : '自动选择系统目录或用户目录'} />
+            <FieldInput label="安装目录" value={installOptions.dir} onChange={(v) => setOption('dir', v)} placeholder={platform === 'windows' ? 'C:\\Program Files\\Probe Panel' : '自动选择系统目录或用户目录'} />
             <FieldInput label="服务名称" value={installOptions.serviceName} onChange={(v) => setOption('serviceName', v)} placeholder={platform === 'windows' ? 'CFVpsMonitorAgent' : 'cf-vps-monitor-agent'} />
             <FieldInput label="二进制下载地址" value={installOptions.binaryUrl || ''} onChange={(v) => setOption('binaryUrl', v)} placeholder="为空则自动下载预编译二进制" />
             <FieldInput label="SHA256SUMS 地址" value={installOptions.checksumUrl || ''} onChange={(v) => setOption('checksumUrl', v)} placeholder="自定义二进制地址必须填写" />
@@ -493,13 +498,20 @@ function GenerateCommandDialog({ client, open, onOpenChange }: { client: Command
           </div>
         </Flex>
 
-        <Box className="admin-command-code">{loadingToken ? '正在获取 Token...' : cmd}</Box>
+        <Text size="2" weight="bold" mt="2">命令</Text>
+        <TextArea
+          className="admin-command-code"
+          value={editableCmd}
+          onChange={(event) => setEditableCmd(event.target.value)}
+          disabled={loadingToken}
+          rows={5}
+        />
         <Flex justify="end" gap="2" mt="3">
           <Button color="red" variant="soft" onClick={() => copyToClipboard(uninstallAllCmd, '彻底卸载命令已复制')}>
             <Trash2 size={14} /> 彻底卸载
           </Button>
           <Button variant="soft" onClick={() => onOpenChange(false)}>关闭</Button>
-          <Button onClick={() => copyToClipboard(cmd, '命令已复制')} disabled={loadingToken || !agentToken}><Copy size={14} /> 复制命令</Button>
+          <Button onClick={() => copyToClipboard(editableCmd, '命令已复制')} disabled={loadingToken || !agentToken || !editableCmd.trim()}><Copy size={14} /> 复制命令</Button>
         </Flex>
       </Dialog.Content>
     </Dialog.Root>
@@ -589,6 +601,17 @@ function FieldInput({
   );
 }
 
+function getApiErrorMessage(result: unknown, fallback: string): string {
+  if (!result || typeof result !== 'object') return fallback;
+  const data = result as { error?: unknown; details?: unknown };
+  const error = typeof data.error === 'string' && data.error.trim() ? data.error.trim() : fallback;
+  if (Array.isArray(data.details)) {
+    const detail = data.details.find(item => typeof item === 'string' && item.trim());
+    if (detail) return `${error}: ${detail}`;
+  }
+  return error;
+}
+
 function EditDialog({ client, open, onOpenChange, onSaved }: { client: AdminClient | null; open: boolean; onOpenChange: (v: boolean) => void; onSaved: (uuid: string, patch: Partial<AdminClient>, saved?: Partial<AdminClient> & { uuid: string }) => void }) {
   const apiFetch = useApi();
   const [saving, setSaving] = useState(false);
@@ -635,7 +658,7 @@ function EditDialog({ client, open, onOpenChange, onSaved }: { client: AdminClie
         onOpenChange(false);
         onSaved(client.uuid, payload as Partial<AdminClient>, saved);
       }
-      else toast.error(result.error || '保存失败');
+      else toast.error(getApiErrorMessage(result, '保存失败'));
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : '保存失败');
     } finally {

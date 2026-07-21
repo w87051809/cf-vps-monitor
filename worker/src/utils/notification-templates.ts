@@ -39,7 +39,7 @@ function eventMessage(input: {
   message: string;
   time?: string | Date;
 }): NotificationMessage {
-  const subject = `${input.emoji} CF VPS Monitor ${input.event}`;
+  const subject = `${input.emoji} 探针面板 ${input.event}`;
   const time = formatNotificationTime(input.time || new Date());
   return message(subject, [
     input.emoji.repeat(3),

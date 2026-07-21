@@ -21,14 +21,11 @@
   },
   "cloudflare": {
     "bindings": {
-      "SUPABASE_URL": {
-        "description": "Supabase 项目的 Project URL，例如 `https://PROJECT_REF.supabase.co`。在 Supabase Project Settings -> API 里复制。"
-      },
-      "SUPABASE_SECRET_KEY": {
-        "description": "Supabase Secret key，通常以 sb_secret_ 开头。不要填 Publishable key 或 anon key。"
+      "DB": {
+        "description": "Cloudflare D1 数据库绑定，binding 名必须是 `DB`。"
       },
       "JWT_SECRET": {
-        "description": "后台登录会话签名密钥。建议使用至少 32 个字符的随机字符串。"
+        "description": "后台登录会话签名密钥。建议使用至少 32 个字符的随机字符串，用 `wrangler secret put JWT_SECRET` 设置。"
       }
     }
   }

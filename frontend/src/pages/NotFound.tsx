@@ -31,7 +31,7 @@ export default function NotFound() {
         </Button>
       </Flex>
       <Text size="1" color="gray" mt="4">
-        CF VPS Monitor {formatAppVersion()}
+        探针面板 {formatAppVersion()}
       </Text>
     </Flex>
   );

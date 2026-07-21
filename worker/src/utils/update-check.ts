@@ -50,3 +50,39 @@ export function normalizeGitSha(value: string | undefined): string {
 export function shortGitSha(value: string | undefined): string {
   return normalizeGitSha(value).slice(0, 7);
 }
+
+function parseComparableVersion(version: string | undefined): number[] | null {
+  const value = (version || '').trim().replace(/^v/i, '');
+  if (!value || value === 'dev') return null;
+  const core = value.split(/[+-]/, 1)[0];
+  const parts = core.split('.');
+  if (parts.length === 0 || parts.some(part => !/^\d+$/.test(part))) return null;
+  return parts.map(part => Number.parseInt(part, 10));
+}
+
+export function compareAppVersions(currentVersion: string | undefined, latestVersion: string | undefined): number | null {
+  const current = parseComparableVersion(currentVersion);
+  const latest = parseComparableVersion(latestVersion);
+  if (!current || !latest) return null;
+  const length = Math.max(current.length, latest.length);
+  for (let index = 0; index < length; index++) {
+    const left = current[index] ?? 0;
+    const right = latest[index] ?? 0;
+    if (left < right) return -1;
+    if (left > right) return 1;
+  }
+  return 0;
+}
+
+export function isUpdateAvailable(
+  currentVersion: string | undefined,
+  latestVersion: string | undefined,
+  currentCommit: string | undefined,
+  latestCommit: string | undefined,
+): boolean {
+  const versionComparison = compareAppVersions(currentVersion, latestVersion);
+  if (versionComparison !== null) return versionComparison < 0;
+
+  const normalizedLatestCommit = normalizeGitSha(latestCommit);
+  return Boolean(normalizedLatestCommit) && normalizeGitSha(currentCommit) !== normalizedLatestCommit;
+}

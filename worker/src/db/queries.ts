@@ -1,7 +1,7 @@
 export * from './types';
 
 import type { AppDatabase } from './provider';
-import * as sba from './supabase-api/client';
+import * as sba from './d1/client';
 import type * as t from './types';
 import type { BackupData } from '../utils/backup';
 import { redactDatabaseSecrets } from '../utils/setup-diagnostics';

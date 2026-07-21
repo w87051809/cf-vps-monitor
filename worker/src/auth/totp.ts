@@ -107,7 +107,7 @@ export async function verifyTotpCode(
 }
 
 export function buildTotpUri(input: { secret: string; username: string; issuer?: string }): string {
-  const issuer = (input.issuer || 'CF VPS Monitor').trim();
+  const issuer = (input.issuer || '探针面板').trim();
   const username = input.username.trim();
   const label = `${issuer}:${username}`;
   const query = new URLSearchParams({

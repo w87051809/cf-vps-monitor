@@ -33,7 +33,7 @@ interface UpdateSettings {
 const stackItems = [
   { icon: Cloud, title: 'Cloudflare Workers', text: 'API 入口、前端托管与部署运行时' },
   { icon: Zap, title: 'Durable Objects', text: '实时数据、WebSocket 与在线状态协调' },
-  { icon: Database, title: 'Supabase HTTP API', text: '配置、历史记录、备份与审计日志' },
+  { icon: Database, title: 'Cloudflare D1', text: '配置、历史记录、备份与审计日志' },
   { icon: Code2, title: 'Hono + TypeScript', text: 'Worker 后端路由、鉴权与接口校验' },
   { icon: Monitor, title: 'React + Radix UI', text: '后台管理、公开状态页与图表展示' },
   { icon: Server, title: 'Go Agent', text: 'VPS 端采集、Ping、网站探测与上报' },
@@ -171,7 +171,7 @@ export default function AdminAbout() {
                   <Monitor size={40} color="white" />
                 </Box>
                 <Box style={{ minWidth: 0, flex: 1 }}>
-                  <Heading size="6">CF VPS Monitor</Heading>
+                  <Heading size="6">探针面板</Heading>
                   <Text as="p" size="2" color="gray" mt="1">基于 Cloudflare Workers 的轻量 VPS 探针与公开状态页</Text>
                   <Flex gap="2" wrap="wrap" mt="2">
                     <Badge size="2" color="blue">{formatAppVersion(version?.version)}</Badge>
@@ -179,7 +179,7 @@ export default function AdminAbout() {
                     <Badge size="2" variant="soft" color="green">Cloudflare Workers</Badge>
                   </Flex>
                 </Box>
-                <Button variant="soft" onClick={() => openExternal('https://github.com/kadidalax/cf-vps-monitor')} aria-label="GitHub">
+                <Button variant="soft" onClick={() => openExternal('https://github.com/w87051809/cf-vps-monitor')} aria-label="GitHub">
                   <Github size={16} />
                 </Button>
               </Flex>
@@ -261,7 +261,7 @@ export default function AdminAbout() {
                 </Box>
 
                 <Flex align="center" justify="between" gap="3" wrap="wrap" mt="auto">
-                  <Text size="1" color="gray">更新源：kadidalax/cf-vps-monitor/main</Text>
+                  <Text size="1" color="gray">更新源：w87051809/cf-vps-monitor/main</Text>
                   <Flex align="center" gap="2">
                     {updateSettingsMessage && (
                       <Text size="1" color={updateSettingsMessage === '已保存' ? 'green' : 'red'}>{updateSettingsMessage}</Text>

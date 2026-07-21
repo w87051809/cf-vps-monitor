@@ -1,6 +1,6 @@
 /**
  * CF VPS Monitor - Cloudflare Worker 监控系统
- * 使用 Hono 框架 + Supabase HTTP API/RPC + Durable Objects
+ * Hono + Cloudflare D1 + Durable Objects
  */
 
 import { Hono } from 'hono';
@@ -52,9 +52,7 @@ import type {
 } from './db/queries';
 
 type RuntimeBindings = {
-  SUPABASE_URL?: string;
-  SUPABASE_SECRET_KEY?: string;
-  SUPABASE_SERVICE_ROLE_KEY?: string;
+  DB?: D1Database;
   JWT_SECRET?: string;
   SETUP_DIAGNOSTICS_ENABLED?: string;
   CURRENT_GIT_COMMIT?: string;
@@ -151,6 +149,7 @@ function canServeWithoutDatabaseStartup(pathname: string): boolean {
     pathname === '/agent/install.sh' ||
     pathname === '/agent/install-linux.sh' ||
     pathname === '/agent/install-windows.ps1' ||
+    pathname.startsWith('/agent/bin/') ||
     pathname === '/api/login' ||
     pathname === '/api/login/mfa' ||
     pathname === '/api/logout' ||
@@ -308,9 +307,67 @@ app.use('/api/*', async (c, next) => {
   return undefined;
 });
 
-app.get('/agent/install.sh', (c) => c.redirect('https://raw.githubusercontent.com/kadidalax/cf-vps-monitor/main/agent/install.sh', 302));
-app.get('/agent/install-linux.sh', (c) => c.redirect('https://raw.githubusercontent.com/kadidalax/cf-vps-monitor/main/agent/install-linux.sh', 302));
-app.get('/agent/install-windows.ps1', (c) => c.redirect('https://raw.githubusercontent.com/kadidalax/cf-vps-monitor/main/agent/install-windows.ps1', 302));
+function bundledAgentScript(c: AppContext, file: 'install.sh' | 'install-linux.sh' | 'install-windows.ps1'): Response {
+  return c.redirect(`/agent-assets/${file}`, 302);
+}
+
+const AGENT_RELEASE_REPOSITORIES = [
+  'w87051809/cf-vps-monitor',
+  'kadidalax/cf-vps-monitor',
+] as const;
+
+const ALLOWED_AGENT_RELEASE_FILES = new Set([
+  'SHA256SUMS',
+  'cf-vps-monitor-agent-linux-amd64',
+  'cf-vps-monitor-agent-linux-arm64',
+  'cf-vps-monitor-agent-darwin-amd64',
+  'cf-vps-monitor-agent-darwin-arm64',
+  'cf-vps-monitor-agent-freebsd-amd64',
+  'cf-vps-monitor-agent-windows-amd64.exe',
+]);
+
+async function proxyAgentReleaseAsset(c: AppContext): Promise<Response> {
+  const file = c.req.param('file');
+  if (!file || !ALLOWED_AGENT_RELEASE_FILES.has(file)) {
+    return c.text('Agent asset not found', 404);
+  }
+
+  for (const repository of AGENT_RELEASE_REPOSITORIES) {
+    const upstreamUrl = `https://github.com/${repository}/releases/latest/download/${file}`;
+    try {
+      const upstream = await fetch(upstreamUrl, {
+        headers: {
+          'User-Agent': 'cf-vps-monitor-worker',
+          'Accept': 'application/octet-stream,text/plain,*/*',
+        },
+      });
+      if (!upstream.ok || !upstream.body) continue;
+
+      const headers = new Headers(upstream.headers);
+      headers.set('Cache-Control', 'public, max-age=300');
+      headers.set('X-Content-Type-Options', 'nosniff');
+      headers.set(
+        'Content-Type',
+        file === 'SHA256SUMS' ? 'text/plain; charset=utf-8' : 'application/octet-stream',
+      );
+      headers.set('Content-Disposition', `attachment; filename="${file}"`);
+      headers.delete('Set-Cookie');
+      return new Response(upstream.body, {
+        status: 200,
+        headers,
+      });
+    } catch {
+      continue;
+    }
+  }
+
+  return c.text('Agent release asset is temporarily unavailable', 502);
+}
+
+app.get('/agent/install.sh', (c) => bundledAgentScript(c, 'install.sh'));
+app.get('/agent/install-linux.sh', (c) => bundledAgentScript(c, 'install-linux.sh'));
+app.get('/agent/install-windows.ps1', (c) => bundledAgentScript(c, 'install-windows.ps1'));
+app.get('/agent/bin/:file', proxyAgentReleaseAsset);
 
 // 公开 API，无认证
 app.route('/api/setup', setupRoutes);
@@ -409,7 +466,7 @@ app.get('/api/version', (c) => {
   const gitCommit = shortGitSha(c.env.CURRENT_GIT_COMMIT);
   return c.json({
     version: appVersion,
-    name: 'CF VPS Monitor',
+    name: '探针面板',
     hash: gitCommit || 'dev',
     build: gitCommit || `release-${appVersion}`,
   });
@@ -421,7 +478,7 @@ app.get('/api/version', (c) => {
 app.notFound((c) => {
   const url = new URL(c.req.url);
   if (!url.pathname.startsWith('/api/') && url.pathname !== '/ping') {
-    return c.text('CF VPS Monitor frontend asset not found. Run `npm run build` in ../frontend and check [assets] in worker/wrangler.toml.', 404);
+    return c.text('探针面板 frontend asset not found. Run `npm run build` in ../frontend and check [assets] in worker/wrangler.toml.', 404);
   }
   return c.json({ error: 'Not Found' }, 404);
 });

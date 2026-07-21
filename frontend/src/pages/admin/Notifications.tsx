@@ -54,6 +54,27 @@ const emptyTabState: Record<NotificationTab, boolean> = {
   expiry: false,
   load: false,
 };
+const notificationChannelOptions = [
+  { value: 'telegram', label: 'Telegram', color: 'green' },
+  { value: 'email', label: 'SMTP 邮件', color: 'blue' },
+  { value: 'webhook', label: 'Webhook', color: 'amber' },
+  { value: 'qq', label: 'QQ', color: 'purple' },
+] as const;
+type NotificationChannelValue = typeof notificationChannelOptions[number]['value'];
+
+function parseNotificationMethod(value?: string): NotificationChannelValue[] {
+  const tokens = new Set((value || 'telegram')
+    .split(/[,\s;|]+/)
+    .map(item => item.trim().toLowerCase())
+    .filter(Boolean));
+  return notificationChannelOptions
+    .map(option => option.value)
+    .filter(value => tokens.has(value));
+}
+
+function formatNotificationMethod(channels: NotificationChannelValue[]) {
+  return channels.length > 0 ? channels.join(',') : 'none';
+}
 
 function toNotificationTab(value?: string): NotificationTab {
   return notificationTabValues.includes(value as NotificationTab) ? value as NotificationTab : 'settings';
@@ -93,17 +114,21 @@ export default function AdminNotifications() {
   const [testRecipient, setTestRecipient] = useState('');
   const [testEmailSending, setTestEmailSending] = useState(false);
   const [testWebhookSending, setTestWebhookSending] = useState(false);
+  const [testQqSending, setTestQqSending] = useState(false);
   const [smtpOpen, setSmtpOpen] = useState(false);
   const [telegramOpen, setTelegramOpen] = useState(false);
   const [webhookOpen, setWebhookOpen] = useState(false);
+  const [qqOpen, setQqOpen] = useState(false);
   const clientsRef = useRef<NotificationClient[]>([]);
   const clientsLoadedRef = useRef(false);
   const clientsLoadPromiseRef = useRef<Promise<NotificationClient[]> | null>(null);
 
   const syncChannelCards = useCallback((method: string) => {
-    setSmtpOpen(method === 'email');
-    setTelegramOpen(method === 'telegram');
-    setWebhookOpen(method === 'webhook');
+    const channels = parseNotificationMethod(method);
+    setSmtpOpen(channels.includes('email'));
+    setTelegramOpen(channels.includes('telegram'));
+    setWebhookOpen(channels.includes('webhook'));
+    setQqOpen(channels.includes('qq'));
   }, []);
 
   // Offline tab state
@@ -447,9 +472,18 @@ export default function AdminNotifications() {
     });
   };
 
-  const handleNotificationMethodChange = (value: string) => {
-    updateSetting('notification_method', value);
-    syncChannelCards(value);
+  const handleNotificationMethodChange = (channel: NotificationChannelValue, checked: boolean) => {
+    const current = parseNotificationMethod(settings.notification_method);
+    const next = checked
+      ? [...current, channel]
+      : current.filter(item => item !== channel);
+    const nextMethod = formatNotificationMethod(
+      notificationChannelOptions
+        .map(option => option.value)
+        .filter(value => next.includes(value)),
+    );
+    updateSetting('notification_method', nextMethod);
+    syncChannelCards(nextMethod);
   };
 
   const saveNotificationSettings = async () => {
@@ -460,6 +494,7 @@ export default function AdminNotifications() {
     delete payload.webhook_headers_set;
     delete payload.webhook_password_set;
     delete payload.webhook_url_host;
+    delete payload.qq_notification_token_set;
     if (!payload.email_smtp_password) {
       delete payload.email_smtp_password;
     }
@@ -480,6 +515,9 @@ export default function AdminNotifications() {
     }
     if (!payload.webhook_password) {
       delete payload.webhook_password;
+    }
+    if (!payload.qq_notification_token) {
+      delete payload.qq_notification_token;
     }
     const changedSettings = getChangedSettings(payload, originalSettings);
     if (Object.keys(changedSettings).length === 0) {
@@ -580,7 +618,10 @@ export default function AdminNotifications() {
     try {
       const result = await apiFetch('/admin/test/sendMessage', {
         method: 'POST',
-        body: JSON.stringify({ message: 'CF VPS Monitor 测试消息 - 通知配置成功!' }),
+        body: JSON.stringify({
+          channel: 'telegram',
+          message: '探针面板 测试消息 - 通知配置成功!',
+        }),
       });
       if (result.success) {
         toast.success('测试消息已发送');
@@ -599,7 +640,7 @@ export default function AdminNotifications() {
         method: 'POST',
         body: JSON.stringify({
           channel: 'email',
-          message: 'CF VPS Monitor 测试消息 - 邮件通知配置成功!',
+          message: '探针面板 测试消息 - 邮件通知配置成功!',
           test_recipient: testRecipient.trim(),
         }),
       });
@@ -622,7 +663,7 @@ export default function AdminNotifications() {
         method: 'POST',
         body: JSON.stringify({
           channel: 'webhook',
-          message: 'CF VPS Monitor 测试消息 - Webhook 通知配置成功!',
+          message: '探针面板 测试消息 - Webhook 通知配置成功!',
         }),
       });
       if (result.success) {
@@ -637,9 +678,32 @@ export default function AdminNotifications() {
     }
   };
 
+  const sendTestQq = async () => {
+    setTestQqSending(true);
+    try {
+      const result = await apiFetch('/admin/test/sendMessage', {
+        method: 'POST',
+        body: JSON.stringify({
+          channel: 'qq',
+          message: '探针面板 测试消息 - QQ 通知配置成功!',
+        }),
+      });
+      if (result.success) {
+        toast.success('QQ 测试消息已发送');
+      } else {
+        toast.error(result.error || '发送失败');
+      }
+    } catch {
+      toast.error('发送失败');
+    } finally {
+      setTestQqSending(false);
+    }
+  };
+
   const offlineStatsCount = offlineNotifications.filter((n) => n.enable).length;
   const expiryStatsCount = expiryNotifications.filter((n) => n.enable).length;
   const notificationMethod = settings.notification_method || 'telegram';
+  const selectedNotificationChannels = parseNotificationMethod(notificationMethod);
   const webhookFormat = settings.webhook_format || 'generic';
   const webhookSecretHint = webhookFormat === 'feishu' || webhookFormat === 'dingtalk'
     ? '用于平台签名校验'
@@ -648,20 +712,13 @@ export default function AdminNotifications() {
       : webhookFormat === 'custom'
         ? '自定义模式可留空'
         : '当前平台通常不需要 Secret';
-  const notificationMethodLabel = notificationMethod === 'email'
-    ? 'SMTP 邮件'
-    : notificationMethod === 'webhook'
-      ? 'Webhook'
-      : notificationMethod === 'none'
-        ? '关闭'
-        : 'Telegram';
-  const notificationMethodBadgeColor = notificationMethod === 'email'
-    ? 'blue'
-    : notificationMethod === 'webhook'
-      ? 'amber'
-      : notificationMethod === 'none'
-        ? 'gray'
-        : 'green';
+  const notificationMethodLabel = selectedNotificationChannels.length > 0
+    ? notificationChannelOptions
+      .filter(option => selectedNotificationChannels.includes(option.value))
+      .map(option => option.label)
+      .join(' + ')
+    : '关闭';
+  const notificationMethodBadgeColor = selectedNotificationChannels.length === 0 ? 'gray' : 'green';
   const showClientSearch = activeTab === 'offline' || activeTab === 'expiry';
   const headerAction = activeTab === 'settings' ? (
     <Button onClick={saveNotificationSettings} disabled={settingsSaving || tabLoading.settings}>
@@ -744,18 +801,17 @@ export default function AdminNotifications() {
                       <Text size="1" color="gray">选择全局通知发送方式</Text>
                     </Box>
                     <div className="notification-channel-controls">
-                      <Select.Root
-                        value={notificationMethod}
-                        onValueChange={handleNotificationMethodChange}
-                      >
-                        <Select.Trigger className="notification-method-select" />
-                        <Select.Content>
-                          <Select.Item value="none">关闭</Select.Item>
-                          <Select.Item value="telegram">Telegram</Select.Item>
-                          <Select.Item value="email">SMTP 邮件</Select.Item>
-                          <Select.Item value="webhook">Webhook</Select.Item>
-                        </Select.Content>
-                      </Select.Root>
+                      <div className="notification-method-checkboxes" role="group" aria-label="通知方式">
+                        {notificationChannelOptions.map((option) => (
+                          <label className="notification-method-option" key={option.value}>
+                            <Checkbox
+                              checked={selectedNotificationChannels.includes(option.value)}
+                              onCheckedChange={(checked) => handleNotificationMethodChange(option.value, checked === true)}
+                            />
+                            <Text size="2">{option.label}</Text>
+                          </label>
+                        ))}
+                      </div>
                       <Badge color={notificationMethodBadgeColor} variant="soft">{notificationMethodLabel}</Badge>
                     </div>
                   </div>
@@ -846,7 +902,7 @@ export default function AdminNotifications() {
                         <div>
                           <SettingInput
                             label="发件人名称"
-                            value={settings.email_smtp_from_name || 'CF VPS Monitor'}
+                            value={settings.email_smtp_from_name || '探针面板'}
                             onChange={(value) => updateSetting('email_smtp_from_name', value)}
                             width="18ch"
                           />
@@ -909,6 +965,98 @@ export default function AdminNotifications() {
                       <Button size="1" className="notification-telegram-test-button" variant="soft" onClick={sendTestMessage}>
                         <Send size={13} /> Telegram 测试
                       </Button>
+                    </div>
+                </SettingCard>
+
+                <SettingCard
+                  title="QQ 通知"
+                  description="NapCat WebUI 私聊或群消息"
+                  open={qqOpen}
+                  onOpenChange={setQqOpen}
+                >
+                    <div className="notification-qq-form-grid">
+                      <label className="notification-webhook-field notification-qq-url">
+                        <Text className="notification-webhook-field-label" size="2" weight="medium">NapCat WebUI 接口</Text>
+                        <Text className="notification-webhook-field-description" size="1" color="gray">
+                          只用于 QQ 通知，例如 https://qq.1089.ltd/api/webqq/messages
+                        </Text>
+                        <TextField.Root
+                          size="2"
+                          value={settings.qq_notification_url || ''}
+                          onChange={(event) => updateSetting('qq_notification_url', event.target.value)}
+                          placeholder="https://qq.1089.ltd/api/webqq/messages"
+                        />
+                      </label>
+
+                      <label className="notification-webhook-field">
+                        <Text className="notification-webhook-field-label" size="2" weight="medium">发送类型</Text>
+                        <Text className="notification-webhook-field-description" size="1" color="gray">私聊或 QQ 群</Text>
+                        <Select.Root
+                          value={settings.qq_notification_target_type || 'private'}
+                          onValueChange={(value) => updateSetting('qq_notification_target_type', value)}
+                        >
+                          <Select.Trigger style={{ width: '100%' }} />
+                          <Select.Content>
+                            <Select.Item value="private">QQ 私聊</Select.Item>
+                            <Select.Item value="group">QQ群</Select.Item>
+                          </Select.Content>
+                        </Select.Root>
+                      </label>
+
+                      <label className="notification-webhook-field">
+                        <Text className="notification-webhook-field-label" size="2" weight="medium">目标 QQ/群号</Text>
+                        <Text className="notification-webhook-field-description" size="1" color="gray">只填数字</Text>
+                        <TextField.Root
+                          size="2"
+                          value={settings.qq_notification_target_id || ''}
+                          onChange={(event) => updateSetting('qq_notification_target_id', event.target.value)}
+                          placeholder="87051809"
+                        />
+                      </label>
+
+                      <label className="notification-webhook-field">
+                        <Text className="notification-webhook-field-label" size="2" weight="medium">WebUI Token</Text>
+                        <Text className="notification-webhook-field-description" size="1" color="gray">
+                          {settings.qq_notification_token_set === 'true'
+                            ? '已保存 Token，留空则不修改'
+                            : 'NapCat WebUI 的 webui_token'}
+                        </Text>
+                        <TextField.Root
+                          size="2"
+                          type="password"
+                          value={settings.qq_notification_token || ''}
+                          onChange={(event) => updateSetting('qq_notification_token', event.target.value)}
+                          placeholder={settings.qq_notification_token_set === 'true' ? '已保存 Token，留空则不修改' : 'webui_token'}
+                        />
+                      </label>
+
+                      <label className="notification-webhook-field">
+                        <Text className="notification-webhook-field-label" size="2" weight="medium">重试次数</Text>
+                        <Text className="notification-webhook-field-description" size="1" color="gray">失败时最多重试 3 次</Text>
+                        <Select.Root
+                          value={settings.qq_notification_retry_count || '1'}
+                          onValueChange={(value) => updateSetting('qq_notification_retry_count', value)}
+                        >
+                          <Select.Trigger style={{ width: '100%' }} />
+                          <Select.Content>
+                            <Select.Item value="1">1</Select.Item>
+                            <Select.Item value="2">2</Select.Item>
+                            <Select.Item value="3">3</Select.Item>
+                          </Select.Content>
+                        </Select.Root>
+                      </label>
+
+                      <div className="notification-qq-actions" aria-label="QQ 操作">
+                        <Button
+                          size="1"
+                          className="notification-qq-test-button"
+                          variant="soft"
+                          onClick={sendTestQq}
+                          disabled={testQqSending}
+                        >
+                          <Send size={13} /> {testQqSending ? '发送中…' : 'QQ 测试'}
+                        </Button>
+                      </div>
                     </div>
                 </SettingCard>
 

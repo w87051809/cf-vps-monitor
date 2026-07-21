@@ -213,7 +213,7 @@ export function ApiUnavailableNotice({ error }: { error: string }) {
         <Box>
           <Text size="3" weight="bold" as="p">无法连接 Worker API</Text>
           <Text size="2" color="gray" as="p">
-            请检查 Worker 是否已部署、Supabase Data API/RPC 是否已配置，以及本地开发时 Vite 是否正确代理到 Worker。
+            请检查 Worker 是否已部署、Cloudflare D1 是否已绑定，以及本地开发时 Vite 是否正确代理到 Worker。
           </Text>
           {showDetail && (
             <Text size="1" color="gray" as="p" style={{ marginTop: 6, fontFamily: 'var(--font-mono, monospace)' }}>

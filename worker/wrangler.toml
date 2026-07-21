@@ -2,6 +2,7 @@ name = "cf-vps-monitor"
 main = "src/index.ts"
 compatibility_date = "2026-06-21"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = false
 
 [observability]
 enabled = true
@@ -33,8 +34,12 @@ new_sqlite_classes = ["LiveDataDO"]
 tag = "v2"
 new_sqlite_classes = ["RateLimitDO"]
 
+[[d1_databases]]
+binding = "DB"
+database_name = "cf-vps-monitor"
+database_id = "1195d230-ce2d-44eb-966f-a67ab3f54409"
+
 [vars]
-SUPABASE_URL = "https://PROJECT_REF.supabase.co"
 
 [assets]
 directory = "../frontend/dist"

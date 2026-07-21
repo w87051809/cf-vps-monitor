@@ -40,6 +40,7 @@ export const CF_MONITOR_BRANCH = 'main';
 export const CF_MONITOR_AGENT_SCRIPT_REF = `refs/heads/${CF_MONITOR_BRANCH}`;
 export const CF_MONITOR_RELEASE_BASE = `https://github.com/${CF_MONITOR_REPOSITORY}/releases/latest/download`;
 export const CF_MONITOR_AGENT_SCRIPT_BASE = `https://raw.githubusercontent.com/${CF_MONITOR_REPOSITORY}/${CF_MONITOR_AGENT_SCRIPT_REF}/agent`;
+export const DEFAULT_INSTALL_GHPROXY = '';
 
 function isLocalHttpHost(hostname: string) {
   const host = hostname.toLowerCase();
@@ -142,12 +143,21 @@ export function cfMonitorAgentBinaryUrl(platform: AgentInstallPlatform, ghproxy 
   return proxiedUrl(`${CF_MONITOR_RELEASE_BASE}/${file}`, ghproxy);
 }
 
+function panelAgentScriptUrl(serverUrl: string, scriptFile: 'install.sh' | 'install-windows.ps1') {
+  const origin = serverUrlOrigin(serverUrl);
+  return origin ? `${origin}/agent/${scriptFile}` : '';
+}
+
 function shellQuote(value: string) {
   return "'" + value.replace(/'/g, "'\\''") + "'";
 }
 
 function psQuote(value: string) {
   return "'" + value.replace(/'/g, "''") + "'";
+}
+
+function psDownloadScriptCommand(url: string, output: string) {
+  return `[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; iwr ${psQuote(url)} -UseBasicParsing -TimeoutSec 90 -OutFile ${psQuote(output)}`;
 }
 
 function normalizeTrafficResetDay(value: string) {
@@ -169,6 +179,11 @@ function shPipe(downloadCommand: string, args: string[]) {
   return `${downloadCommand} | sh -s -- ${args.map(shellQuote).join(' ')}`;
 }
 
+function unixScriptDownloadCommand(url: string) {
+  const quoted = shellQuote(url);
+  return `(curl -fsSL --connect-timeout 20 --max-time 90 --retry 3 ${quoted} || wget -qO- -T 20 -t 3 ${quoted})`;
+}
+
 export function buildAgentInstallCommand({
   platform,
   serverUrl,
@@ -184,11 +199,12 @@ export function buildAgentInstallCommand({
   instanceId?: string;
   nodeName?: string;
 }) {
-  const ghproxy = normalizeProxyUrl(options.ghproxy);
+  const ghproxy = normalizeProxyUrl(options.ghproxy) || DEFAULT_INSTALL_GHPROXY;
   const downloadProxy = normalizeProxyUrl(options.downloadProxy, false);
   const { binaryUrl, checksumUrl } = customAgentDownloadUrls(options.binaryUrl, options.checksumUrl);
   const releaseTag = normalizeReleaseTag(options.releaseTag);
   const scriptRef = options.scriptRef?.trim();
+  const useBundledPanelScript = !releaseTag && !scriptRef;
   const installMode = ['system', 'user'].includes(options.installMode) ? options.installMode : '';
   const dir = options.dir.trim();
   const serviceName = options.serviceName.trim();
@@ -218,8 +234,11 @@ export function buildAgentInstallCommand({
       if (mountExclude) args.push('--mount-exclude', mountExclude);
       if (nicInclude) args.push('--nic-include', nicInclude);
       if (nicExclude) args.push('--nic-exclude', nicExclude);
+      const scriptUrl = useBundledPanelScript
+        ? panelAgentScriptUrl(serverUrl, 'install.sh')
+        : '';
       return shPipe(
-        `wget -qO- ${shellQuote(cfMonitorAgentScriptUrl('install.sh', ghproxy, releaseTag, scriptRef))}`,
+        unixScriptDownloadCommand(scriptUrl || cfMonitorAgentScriptUrl('install.sh', ghproxy, releaseTag, scriptRef)),
         args,
       );
     }
@@ -239,8 +258,12 @@ export function buildAgentInstallCommand({
       if (mountExclude) args.push('-MountExclude', mountExclude);
       if (nicInclude) args.push('-NicInclude', nicInclude);
       if (nicExclude) args.push('-NicExclude', nicExclude);
+      const scriptUrl = useBundledPanelScript
+        ? panelAgentScriptUrl(serverUrl, 'install-windows.ps1')
+        : '';
+      const windowsScriptUrl = scriptUrl || cfMonitorAgentScriptUrl('install-windows.ps1', ghproxy, releaseTag, scriptRef);
       return 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ' +
-        `"iwr ${psQuote(cfMonitorAgentScriptUrl('install-windows.ps1', ghproxy, releaseTag, scriptRef))} -UseBasicParsing -OutFile 'install-windows.ps1'; & '.\\install-windows.ps1' ${args.map((arg, index) => index % 2 === 0 ? arg : psQuote(arg)).join(' ')}"`;
+        `"${psDownloadScriptCommand(windowsScriptUrl, 'install-windows.ps1')}; & '.\\install-windows.ps1' ${args.map((arg, index) => index % 2 === 0 ? arg : psQuote(arg)).join(' ')}"`;
     }
     default:
       return '';
@@ -262,7 +285,7 @@ export function buildAgentUninstallAllCommand({
   switch (platform) {
     case 'windows':
       return 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command ' +
-        `"iwr ${psQuote(scriptUrl('install-windows.ps1'))} -UseBasicParsing -OutFile 'install-windows.ps1'; & '.\\install-windows.ps1' -UninstallAll -Yes"`;
+        `"${psDownloadScriptCommand(scriptUrl('install-windows.ps1'), 'install-windows.ps1')}; & '.\\install-windows.ps1' -UninstallAll -Yes"`;
     case 'unix':
     default:
       return shPipe(

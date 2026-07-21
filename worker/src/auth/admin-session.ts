@@ -1,5 +1,4 @@
 import * as db from '../db/queries';
-import { validateSupabaseAdminSession } from '../db/supabase-api/client';
 import type { AdminJwtPayload } from './jwt';
 
 const ADMIN_SESSION_CACHE_MS = 10_000;
@@ -52,16 +51,6 @@ async function readAdminSession(
   payload: AdminJwtPayload,
   key: string,
 ): Promise<AdminSessionUser | null> {
-  if (database.provider === 'supabase-api') {
-    const user = await validateSupabaseAdminSession(database.env, payload.userId, payload.sessionVersion);
-    if (!user || user.username !== payload.username) return null;
-    adminSessionCache.set(key, {
-      user,
-      expiresAt: Date.now() + ADMIN_SESSION_CACHE_MS,
-    });
-    return user;
-  }
-
   const user = await db.getUserByUuid(database, payload.userId);
   if (!user) return null;
   if (user.username !== payload.username) return null;

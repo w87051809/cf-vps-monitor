@@ -1,19 +1,19 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { isSupabaseApiConfigured, type SupabaseApiEnv } from './supabase-api/client';
+import { isD1Configured, type D1ApiEnv } from './d1/client';
 import { redactDatabaseSecrets } from '../utils/setup-diagnostics';
 
-export type DatabaseProvider = 'supabase-api';
+export type DatabaseProvider = 'd1';
 
-export interface SupabaseApiAppDatabase {
-  provider: 'supabase-api';
-  env: SupabaseApiEnv;
+export interface D1AppDatabase {
+  provider: 'd1';
+  env: D1ApiEnv;
 }
 
-export type AppDatabase = SupabaseApiAppDatabase;
+export type AppDatabase = D1AppDatabase;
 
-export type DatabaseProviderEnv = SupabaseApiEnv;
+export type DatabaseProviderEnv = D1ApiEnv;
 
-export type DatabaseConfigurationErrorCode = 'missing_supabase_config';
+export type DatabaseConfigurationErrorCode = 'missing_d1_binding';
 
 export class DatabaseConfigurationError extends Error {
   readonly code: DatabaseConfigurationErrorCode;
@@ -28,19 +28,19 @@ export class DatabaseConfigurationError extends Error {
 const requestDb = new AsyncLocalStorage<AppDatabase>();
 
 export function resolveDatabaseProvider(_env: DatabaseProviderEnv): DatabaseProvider {
-  return 'supabase-api';
+  return 'd1';
 }
 
 export function getDatabase(env: DatabaseProviderEnv): AppDatabase {
   const existing = requestDb.getStore();
   if (existing) return existing;
-  if (!isSupabaseApiConfigured(env)) {
+  if (!isD1Configured(env)) {
     throw new DatabaseConfigurationError(
-      'missing_supabase_config',
-      'SUPABASE_URL and SUPABASE_SECRET_KEY are required for Supabase HTTP API/RPC mode.',
+      'missing_d1_binding',
+      'Cloudflare D1 binding DB is required.',
     );
   }
-  return { provider: 'supabase-api', env };
+  return { provider: 'd1', env };
 }
 
 export async function withDatabase<T>(

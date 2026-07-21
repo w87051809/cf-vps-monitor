@@ -1,4 +1,5 @@
 import { validateWebhookUrl } from '../utils/webhook.ts';
+import { normalizeNotificationMethod } from '../utils/notification-channels.ts';
 
 type SettingType = 'string' | 'boolean' | 'integer' | 'enum';
 
@@ -32,7 +33,7 @@ export const REMOVED_SETTING_KEYS = new Set([
 export const SETTING_SCHEMA = {
   site_title: {
     type: 'string',
-    defaultValue: 'CF VPS Monitor',
+    defaultValue: '探针面板',
     public: true,
     maxLength: 128,
   },
@@ -81,7 +82,7 @@ export const SETTING_SCHEMA = {
   },
   update_repository_url: {
     type: 'string',
-    defaultValue: '',
+    defaultValue: 'https://github.com/w87051809/cf-vps-monitor',
     public: false,
     maxLength: 256,
   },
@@ -161,10 +162,10 @@ export const SETTING_SCHEMA = {
     max: 3600,
   },
   notification_method: {
-    type: 'enum',
+    type: 'string',
     defaultValue: 'telegram',
     public: false,
-    values: ['telegram', 'email', 'webhook', 'none'],
+    maxLength: 64,
   },
   telegram_bot_token: {
     type: 'string',
@@ -221,7 +222,7 @@ export const SETTING_SCHEMA = {
   },
   email_smtp_from_name: {
     type: 'string',
-    defaultValue: 'CF VPS Monitor',
+    defaultValue: '探针面板',
     public: false,
     maxLength: 128,
   },
@@ -296,6 +297,38 @@ export const SETTING_SCHEMA = {
     maxLength: 512,
   },
   webhook_retry_count: {
+    type: 'integer',
+    defaultValue: '1',
+    public: false,
+    min: 1,
+    max: 3,
+  },
+  qq_notification_url: {
+    type: 'string',
+    defaultValue: '',
+    public: false,
+    maxLength: 2048,
+  },
+  qq_notification_token: {
+    type: 'string',
+    defaultValue: '',
+    public: false,
+    sensitive: true,
+    maxLength: 256,
+  },
+  qq_notification_target_type: {
+    type: 'enum',
+    defaultValue: 'private',
+    public: false,
+    values: ['private', 'group'],
+  },
+  qq_notification_target_id: {
+    type: 'string',
+    defaultValue: '',
+    public: false,
+    maxLength: 20,
+  },
+  qq_notification_retry_count: {
     type: 'integer',
     defaultValue: '1',
     public: false,
@@ -489,6 +522,13 @@ function normalizeWebhookHeadersJson(value: unknown): string | null {
   }
 }
 
+function normalizeQqTargetId(value: unknown): string | null {
+  if (value === '' || value === null || value === undefined) return '';
+  if (typeof value !== 'string') return null;
+  const text = value.trim();
+  return /^\d{5,20}$/.test(text) ? text : null;
+}
+
 export function isKnownSettingKey(key: string): key is SettingKey {
   return SETTING_KEY_SET.has(key);
 }
@@ -520,12 +560,15 @@ export function normalizeSettingValue(
       if (key === 'script_domain') normalized = normalizeScriptDomain(value);
       else if (key === 'site_logo_url') normalized = normalizeSiteLogoUrl(value);
       else if (key === 'update_repository_url') normalized = normalizeUpdateRepositoryUrl(value);
+      else if (key === 'notification_method') normalized = normalizeNotificationMethod(value);
       else if (key === 'email_smtp_host') normalized = normalizeSmtpHost(value);
       else if (key === 'email_smtp_from_address') normalized = normalizeEmailAddress(value);
       else if (key === 'email_smtp_recipients') normalized = normalizeEmailRecipients(value);
       else if (key === 'webhook_url') normalized = normalizeWebhookUrl(value);
       else if (key === 'webhook_content_type') normalized = normalizeWebhookContentType(value);
       else if (key === 'webhook_headers_json') normalized = normalizeWebhookHeadersJson(value);
+      else if (key === 'qq_notification_url') normalized = normalizeWebhookUrl(value);
+      else if (key === 'qq_notification_target_id') normalized = normalizeQqTargetId(value);
       else if (key === 'active_theme') {
         const text = settingToString(value)?.trim() || SETTING_SCHEMA.active_theme.defaultValue;
         const activeTheme = text === 'default' ? 'monitor' : text;
