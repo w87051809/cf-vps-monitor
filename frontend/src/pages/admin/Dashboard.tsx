@@ -519,8 +519,10 @@ function SortableNodeTableRow({ node, selected, onSelect, liveData, onDetail, on
 
 type AdminServerViewMode = 'cards' | 'table';
 
+const ADMIN_SERVER_VIEW_STORAGE_KEY = 'adminServerViewModeV2';
+
 function normalizeAdminServerViewMode(value: string | null): AdminServerViewMode {
-  return value === 'table' ? 'table' : 'cards';
+  return value === 'cards' ? 'cards' : 'table';
 }
 
 function GenerateCommandDialog({ client, open, onOpenChange }: { client: CommandClient; open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -1019,7 +1021,7 @@ export default function AdminDashboard() {
   const [sortKey, setSortKey] = useState<AdminSortKey>('manual');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [viewMode, setViewMode] = useState<AdminServerViewMode>(() =>
-    normalizeAdminServerViewMode(window.localStorage.getItem('adminServerViewMode')),
+    normalizeAdminServerViewMode(window.localStorage.getItem(ADMIN_SERVER_VIEW_STORAGE_KEY)),
   );
   const [addOpen, setAddOpen] = useState(false);
   const [editClient, setEditClient] = useState<AdminClient | null>(null);
@@ -1107,7 +1109,7 @@ export default function AdminDashboard() {
 
   const changeViewMode = (next: AdminServerViewMode) => {
     setViewMode(next);
-    window.localStorage.setItem('adminServerViewMode', next);
+    window.localStorage.setItem(ADMIN_SERVER_VIEW_STORAGE_KEY, next);
   };
 
   const loadClients = useCallback(async (force = false) => {
