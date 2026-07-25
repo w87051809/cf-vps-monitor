@@ -17,7 +17,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import {
   Flex, Card, Text, Badge, Box, Button, TextField,
-  Dialog, Switch, IconButton, Separator, TextArea, SegmentedControl, Checkbox, Tooltip, Select
+  Dialog, Switch, IconButton, Separator, TextArea, SegmentedControl, Checkbox, Tooltip, Select, Table
 } from '@radix-ui/themes';
 import {
   Plus, Pencil, Trash2, Copy, Search,
@@ -29,10 +29,12 @@ import { useApi } from '../../contexts/AuthContext';
 import { useLiveData } from '../../contexts/LiveDataContext';
 import Flag from '../../components/Flag';
 import PriceTags from '../../components/PriceTags';
+import UsageBar from '../../components/UsageBar';
 import { BillingCycleSelect, CurrencySymbols, ExpiryDateInput } from '../../components/admin/BillingControls';
 import { TrafficLimitEditor } from '../../components/admin/TrafficLimitEditor';
-import { formatBytes } from '../../utils/format';
+import { formatBytes, formatPercent, formatSpeed, formatUptime } from '../../utils/format';
 import { isValidDisplayPrice, toDateInputValue } from '../../utils/billing';
+import { getOSImage, getOSName } from '../../utils/osIcon';
 import {
   createTrafficLimitFormValue,
   serializeTrafficLimitFormValue,
@@ -374,6 +376,151 @@ function SortableNodeCard({ node, selected, onSelect, liveData, onDetail, onEdit
       </Card>
     </div>
   );
+}
+
+function SortableNodeTableRow({ node, selected, onSelect, liveData, onDetail, onEdit, onDelete, onCmd, onRotateToken, dragDisabled }: SortableRowProps) {
+  const isOnline = liveData.online.includes(node.uuid);
+  const agentVersion = normalizeAgentVersion(node.version) || '-';
+  const systemVersion = formatSystemVersion(node);
+  const live = liveData.data?.[node.uuid];
+  const cpuPct = Math.min(Math.max(live?.cpu || 0, 0), 100);
+  const ramTotal = node.mem_total || live?.ram_total || 0;
+  const ramPct = formatPercent(live?.ram || 0, ramTotal);
+  const diskTotal = node.disk_total || live?.disk_total || 0;
+  const diskPct = formatPercent(live?.disk || 0, diskTotal);
+  const uptimeLabel = isOnline ? formatUptime(live?.uptime || 0) : '-';
+  const fullVersionTitle = [
+    `客户端版本: ${node.version || '-'}`,
+    `系统版本: ${[node.os, node.arch].filter(Boolean).join(' / ') || '-'}`,
+  ].join('\n');
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: node.uuid,
+    disabled: dragDisabled,
+  });
+
+  const rowStyle = {
+    opacity: isDragging ? 0.72 : isOnline ? 1 : 0.55,
+    transform: CSS.Transform.toString(transform),
+    transition,
+    position: 'relative',
+    zIndex: isDragging ? 2 : 0,
+  } as React.CSSProperties;
+
+  return (
+    <Table.Row ref={setNodeRef} className={`admin-server-table-row${selected ? ' is-selected' : ''}${isOnline ? ' is-online' : ' is-offline'}${isDragging ? ' is-dragging' : ''}`} style={rowStyle}>
+      <Table.Cell className="admin-server-table-control-cell">
+        <div className="admin-server-row-controls">
+          <Tooltip content={dragDisabled ? '切到手动排序后可拖拽' : '拖拽排序'}>
+            <button
+              type="button"
+              className="admin-row-drag-handle"
+              aria-label={`拖拽排序 ${node.name || node.uuid}`}
+              disabled={dragDisabled}
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical size={14} />
+            </button>
+          </Tooltip>
+          <Checkbox className="admin-node-checkbox" checked={selected} onCheckedChange={() => onSelect(node.uuid)} />
+        </div>
+      </Table.Cell>
+      <Table.Cell>
+        <button type="button" className="admin-server-name-button" onClick={() => onDetail(node)} title={node.name || '查看详情'}>
+          <Flag region={node.region} size={18} />
+          <span className="admin-server-name-copy">
+            <Text className="admin-node-name-text" size="2" weight="bold">{node.name || '未命名'}</Text>
+            <span className="admin-server-row-badges">
+              {Boolean(node.hidden) && <Badge size="1" variant="soft" color="orange">隐藏</Badge>}
+              {node.group && <Badge size="1" variant="soft" color="gray">{node.group}</Badge>}
+            </span>
+          </span>
+        </button>
+      </Table.Cell>
+      <Table.Cell>
+        <Text className="admin-server-table-text" size="2" title={node.region || '未知'}>{node.region || '-'}</Text>
+      </Table.Cell>
+      <Table.Cell>
+        <div className="admin-server-ip-stack">
+          {node.ipv4 && <CopyableIp value={node.ipv4} />}
+          {node.ipv6 && <CopyableIp value={node.ipv6} muted />}
+          {!node.ipv4 && !node.ipv6 && <Text size="1" color="gray">-</Text>}
+        </div>
+      </Table.Cell>
+      <Table.Cell>
+        <Flex align="center" gap="2" className="admin-server-system-cell" title={fullVersionTitle}>
+          <img src={getOSImage(node.os)} alt="" />
+          <span className="admin-server-system-copy">
+            <Text className="admin-server-table-text" size="2" weight="medium">{getOSName(node.os) || '-'}</Text>
+            <Text className="admin-server-table-subtext" size="1" color="gray">{systemVersion}</Text>
+          </span>
+        </Flex>
+      </Table.Cell>
+      <Table.Cell>
+        <Flex direction="column" gap="1" className="admin-server-status-cell">
+          <Badge size="1" variant="soft" color={isOnline ? 'green' : 'gray'}>{isOnline ? '在线' : '离线'}</Badge>
+          <Text size="1" color="gray" className="admin-server-table-subtext" title={uptimeLabel}>{uptimeLabel}</Text>
+        </Flex>
+      </Table.Cell>
+      <Table.Cell>
+        <div className="admin-server-resource-cell" title={`${cpuPct.toFixed(1)}%`}>
+          <UsageBar value={cpuPct} compact showValue={false} />
+          <Text size="1" color="gray">{cpuPct.toFixed(1)}%</Text>
+        </div>
+      </Table.Cell>
+      <Table.Cell>
+        <div className="admin-server-resource-cell" title={`${formatBytes(live?.ram || 0)} / ${formatBytes(ramTotal)}`}>
+          <UsageBar value={ramPct} compact showValue={false} />
+          <Text size="1" color="gray">{ramPct.toFixed(1)}%</Text>
+        </div>
+      </Table.Cell>
+      <Table.Cell>
+        <div className="admin-server-resource-cell" title={`${formatBytes(live?.disk || 0)} / ${formatBytes(diskTotal)}`}>
+          <UsageBar value={diskPct} compact showValue={false} />
+          <Text size="1" color="gray">{diskPct.toFixed(1)}%</Text>
+        </div>
+      </Table.Cell>
+      <Table.Cell>
+        <Text className="admin-server-table-text admin-server-nowrap" size="2">↑ {formatSpeed(live?.net_out || 0)} ↓ {formatSpeed(live?.net_in || 0)}</Text>
+      </Table.Cell>
+      <Table.Cell>
+        <Text className="admin-server-table-text admin-server-nowrap" size="2">↑ {formatBytes(live?.net_total_up || 0)} ↓ {formatBytes(live?.net_total_down || 0)}</Text>
+      </Table.Cell>
+      <Table.Cell>
+        <div className="admin-server-price-cell">
+          {node.price !== undefined && node.price !== 0 ? (
+            <PriceTags price={node.price} billing_cycle={node.billing_cycle} expired_at={node.expired_at} currency={node.currency} showTags={false} />
+          ) : (
+            <Text size="2" color="gray">-</Text>
+          )}
+        </div>
+      </Table.Cell>
+      <Table.Cell>
+        <Text className="admin-server-table-subtext" size="1" title={fullVersionTitle}>{agentVersion}</Text>
+      </Table.Cell>
+      <Table.Cell>
+        <Flex className="admin-row-actions">
+          <RowActionButton label="编辑" onClick={() => onEdit(node)}><Pencil size={13} /></RowActionButton>
+          <RowActionButton label="安装命令" onClick={() => onCmd(node)}><Download size={13} /></RowActionButton>
+          <RowActionButton label="重置 Token" onClick={() => onRotateToken(node)}><KeyRound size={13} /></RowActionButton>
+          <RowActionButton label="删除" color="red" onClick={() => onDelete(node)}><Trash2 size={13} /></RowActionButton>
+        </Flex>
+      </Table.Cell>
+    </Table.Row>
+  );
+}
+
+type AdminServerViewMode = 'cards' | 'table';
+
+function normalizeAdminServerViewMode(value: string | null): AdminServerViewMode {
+  return value === 'table' ? 'table' : 'cards';
 }
 
 function GenerateCommandDialog({ client, open, onOpenChange }: { client: CommandClient; open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -871,6 +1018,9 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState<NodeStatusFilter>('all');
   const [sortKey, setSortKey] = useState<AdminSortKey>('manual');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [viewMode, setViewMode] = useState<AdminServerViewMode>(() =>
+    normalizeAdminServerViewMode(window.localStorage.getItem('adminServerViewMode')),
+  );
   const [addOpen, setAddOpen] = useState(false);
   const [editClient, setEditClient] = useState<AdminClient | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -954,6 +1104,11 @@ export default function AdminDashboard() {
   const filtered = useMemo(() => sortedClients, [sortedClients]);
   const filteredUuids = useMemo(() => filtered.map((client) => client.uuid), [filtered]);
   const dragDisabled = sortKey !== 'manual' || Boolean(search.trim()) || selectedGroup !== 'all' || statusFilter !== 'all';
+
+  const changeViewMode = (next: AdminServerViewMode) => {
+    setViewMode(next);
+    window.localStorage.setItem('adminServerViewMode', next);
+  };
 
   const loadClients = useCallback(async (force = false) => {
     try {
@@ -1147,12 +1302,16 @@ export default function AdminDashboard() {
               <Text size="2" weight="bold">服务器节点</Text>
               <Flex align="center" gap="2">
                 <Text size="1" color="gray">当前 {filtered.length} 个</Text>
+                <SegmentedControl.Root value={viewMode} size="1" onValueChange={(value) => changeViewMode(value as AdminServerViewMode)}>
+                  <SegmentedControl.Item value="cards">卡片</SegmentedControl.Item>
+                  <SegmentedControl.Item value="table">表格</SegmentedControl.Item>
+                </SegmentedControl.Root>
                 <Checkbox checked={allFilteredSelected} onCheckedChange={toggleSelectAll} />
               </Flex>
             </Flex>
             {filtered.length === 0 ? (
               <Text align="center" color="gray" style={{ display: 'block', padding: 24 }}>{search ? '未找到匹配的服务器' : '暂无服务器'}</Text>
-            ) : (
+            ) : viewMode === 'cards' ? (
               <div className="admin-node-card-grid">
                 {filtered.map((client) => (
                   <SortableNodeCard
@@ -1169,6 +1328,46 @@ export default function AdminDashboard() {
                     onRotateToken={(c) => { setRotateTokenClient(c); setRotateTokenOpen(true); }}
                   />
                 ))}
+              </div>
+            ) : (
+              <div className="admin-server-table-wrap">
+                <Table.Root className="admin-server-table" size="1" variant="surface">
+                  <Table.Header>
+                    <Table.Row>
+                      <Table.ColumnHeaderCell className="admin-server-table-control-cell" />
+                      <Table.ColumnHeaderCell>服务器名字</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>地区</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>IP</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>系统</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>状态</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>CPU</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>内存</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>硬盘</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>网络</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>流量</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>价格</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>Agent</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>操作</Table.ColumnHeaderCell>
+                    </Table.Row>
+                  </Table.Header>
+                  <Table.Body>
+                    {filtered.map((client) => (
+                      <SortableNodeTableRow
+                        key={client.uuid}
+                        node={client}
+                        selected={selectedNodes.includes(client.uuid)}
+                        onSelect={toggleSelect}
+                        liveData={liveData}
+                        dragDisabled={dragDisabled}
+                        onDetail={(c) => { setDetailClient(c); setDetailOpen(true); }}
+                        onEdit={(c) => { setEditClient(c); setEditOpen(true); }}
+                        onDelete={(c) => { setDeleteClient(c); setDeleteOpen(true); }}
+                        onCmd={(c) => { setCmdClient(c); setCmdOpen(true); }}
+                        onRotateToken={(c) => { setRotateTokenClient(c); setRotateTokenOpen(true); }}
+                      />
+                    ))}
+                  </Table.Body>
+                </Table.Root>
               </div>
             )}
           </SortableContext>
