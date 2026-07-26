@@ -8,7 +8,6 @@ import { ArrowDown, ArrowUp, ChevronRight, ChevronsUpDown } from 'lucide-react';
 import UsageBar from './UsageBar';
 import Flag from './Flag';
 import MiniPingChart from './MiniPingChart';
-import PriceTags from './PriceTags';
 import { formatBytes, formatPercent, formatSpeed, formatUptime } from '../utils/format';
 import { getOSImage, getOSName } from '../utils/osIcon';
 import { ClientInfo, LiveDataMap, LiveRecord } from '../types';
@@ -20,7 +19,7 @@ interface NodeTableProps {
   includeHidden?: boolean;
 }
 
-type SortKey = 'manual' | 'name' | 'os' | 'status' | 'cpu' | 'ram' | 'disk' | 'network' | 'price' | 'traffic';
+type SortKey = 'manual' | 'name' | 'os' | 'status' | 'cpu' | 'ram' | 'disk' | 'network' | 'traffic';
 type SortDir = 'asc' | 'desc';
 
 function formatUptimeZh(seconds?: number): string {
@@ -133,16 +132,6 @@ function ExpandedNodeDetails({
 }) {
   return (
     <Box className="node-table-expanded">
-      <Flex gap="3" wrap="wrap" align="center" className="node-table-tags">
-        <PriceTags
-          price={node.price}
-          billing_cycle={node.billing_cycle}
-          expired_at={node.expired_at}
-          currency={node.currency}
-          showTags={false}
-        />
-      </Flex>
-
       <div className="node-table-expanded-layout">
         <div className="node-table-detail-sections">
           <DetailSection title="资源规格">
@@ -256,9 +245,6 @@ export default function NodeTable({ nodes, liveData, includeHidden = false }: No
         case 'network':
           cmp = ((aLive?.net_in || 0) + (aLive?.net_out || 0)) - ((bLive?.net_in || 0) + (bLive?.net_out || 0));
           break;
-        case 'price':
-          cmp = (a.price || 0) - (b.price || 0);
-          break;
         case 'traffic':
           cmp = ((aLive?.net_total_up || 0) + (aLive?.net_total_down || 0)) - ((bLive?.net_total_up || 0) + (bLive?.net_total_down || 0));
           break;
@@ -302,7 +288,7 @@ export default function NodeTable({ nodes, liveData, includeHidden = false }: No
         className="node-table-root"
         variant="surface"
         size="1"
-        style={{ width: '100%', minWidth: 1254, tableLayout: 'fixed' }}
+        style={{ width: '100%', minWidth: 1146, tableLayout: 'fixed' }}
       >
         <Table.Header>
           <Table.Row>
@@ -314,7 +300,6 @@ export default function NodeTable({ nodes, liveData, includeHidden = false }: No
             <SortHeader column="ram" style={{ width: 118 }}>内存</SortHeader>
             <SortHeader column="disk" style={{ width: 118 }}>硬盘</SortHeader>
             <SortHeader column="network" style={{ width: 142 }}>网络</SortHeader>
-            <SortHeader column="price" style={{ width: 108 }}>价格</SortHeader>
             <SortHeader column="traffic" style={{ width: 166 }}>流量</SortHeader>
           </Table.Row>
         </Table.Header>
@@ -404,19 +389,6 @@ export default function NodeTable({ nodes, liveData, includeHidden = false }: No
                     </Text>
                   </Table.Cell>
                   <Table.Cell>
-                    {node.price !== undefined && node.price !== 0 ? (
-                      <PriceTags
-                        price={node.price}
-                        billing_cycle={node.billing_cycle}
-                        currency={node.currency}
-                        showTags={false}
-                        showExpiry={false}
-                      />
-                    ) : (
-                      <Text size="2" color="gray">-</Text>
-                    )}
-                  </Table.Cell>
-                  <Table.Cell>
                     <Text size="2" style={{ whiteSpace: 'nowrap' }}>
                       ↑ {formatBytes(live?.net_total_up || 0)} ↓ {formatBytes(live?.net_total_down || 0)}
                     </Text>
@@ -425,7 +397,7 @@ export default function NodeTable({ nodes, liveData, includeHidden = false }: No
 
                 {isExpanded && (
                   <Table.Row>
-                    <Table.Cell colSpan={10} className="node-table-expanded-cell">
+                    <Table.Cell colSpan={9} className="node-table-expanded-cell">
                       <ExpandedNodeDetails
                         node={node}
                         live={live}
