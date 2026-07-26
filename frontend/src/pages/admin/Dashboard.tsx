@@ -445,13 +445,13 @@ function SortableNodeTableRow({ node, selected, onSelect, liveData, onDetail, on
         </button>
       </Table.Cell>
       <Table.Cell>
-        <Text className="admin-server-table-text" size="2" title={node.region || '未知'}>{node.region || '-'}</Text>
-      </Table.Cell>
-      <Table.Cell>
-        <div className="admin-server-ip-stack">
-          {node.ipv4 && <CopyableIp value={node.ipv4} />}
-          {node.ipv6 && <CopyableIp value={node.ipv6} muted />}
-          {!node.ipv4 && !node.ipv6 && <Text size="1" color="gray">-</Text>}
+        <div className="admin-server-region-cell">
+          <Text className="admin-server-table-text" size="2" title={node.region || '未知'}>{node.region || '-'}</Text>
+          <div className="admin-server-ip-stack">
+            {node.ipv4 && <CopyableIp value={node.ipv4} />}
+            {node.ipv6 && <CopyableIp value={node.ipv6} muted />}
+            {!node.ipv4 && !node.ipv6 && <Text size="1" color="gray">-</Text>}
+          </div>
         </div>
       </Table.Cell>
       <Table.Cell>
@@ -1338,8 +1338,7 @@ export default function AdminDashboard() {
                     <Table.Row>
                       <Table.ColumnHeaderCell className="admin-server-table-control-cell" />
                       <Table.ColumnHeaderCell>服务器名字</Table.ColumnHeaderCell>
-                      <Table.ColumnHeaderCell>地区</Table.ColumnHeaderCell>
-                      <Table.ColumnHeaderCell>IP</Table.ColumnHeaderCell>
+                      <Table.ColumnHeaderCell>地区 / IP</Table.ColumnHeaderCell>
                       <Table.ColumnHeaderCell>系统</Table.ColumnHeaderCell>
                       <Table.ColumnHeaderCell>状态</Table.ColumnHeaderCell>
                       <Table.ColumnHeaderCell>CPU</Table.ColumnHeaderCell>
