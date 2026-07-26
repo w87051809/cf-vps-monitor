@@ -1636,10 +1636,10 @@ html[data-monitor-theme='next'] .node-network-value strong {
 }
 
 .node-table-resource-cell {
-  width: 108px;
+  width: 140px;
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(58px, 1fr) max-content;
+  grid-template-columns: minmax(92px, 1fr) max-content;
   align-items: center;
   gap: 8px;
 }
