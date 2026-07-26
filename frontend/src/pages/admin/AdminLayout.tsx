@@ -244,7 +244,7 @@ export default function AdminLayout() {
       </aside>
 
       <main className="admin-main" style={{ flex: 1, minWidth: 0, padding: "8px 16px 16px", overflowY: "auto" }}>
-        <div className="admin-main-content" style={{ maxWidth: 1400, margin: "0 auto", width: "100%" }}>
+        <div className="admin-main-content" style={{ maxWidth: 1760, margin: "0 auto", width: "100%" }}>
           <div className="admin-top-actions" aria-label="后台快捷操作">
             <IconButton
               className="admin-top-action-button"
