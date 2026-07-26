@@ -3377,7 +3377,7 @@ html[data-monitor-theme='next'] .node-network-value strong {
 
 .admin-server-table-wrap {
   width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
   border: 1px solid var(--monitor-border);
   border-radius: 8px;
   background:
@@ -3387,13 +3387,14 @@ html[data-monitor-theme='next'] .node-network-value strong {
 
 .admin-server-table {
   width: 100%;
-  min-width: 1480px;
+  min-width: 0;
   table-layout: fixed;
   --table-row-box-shadow: inset 0 -1px var(--monitor-border);
+  font-size: 12px;
 }
 
 .admin-server-table .rt-TableColumnHeaderCell {
-  height: 34px;
+  height: 30px;
   color: var(--gray-12);
   font-weight: 800;
   white-space: nowrap;
@@ -3407,34 +3408,42 @@ html[data-monitor-theme='next'] .node-network-value strong {
   border-bottom-color: var(--monitor-border) !important;
 }
 
+.admin-server-table .rt-TableCell,
+.admin-server-table .rt-TableColumnHeaderCell {
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
 .admin-server-table .rt-TableColumnHeaderCell:nth-child(1),
-.admin-server-table .rt-TableCell:nth-child(1) { width: 56px; }
+.admin-server-table .rt-TableCell:nth-child(1) { width: 3.2%; }
 .admin-server-table .rt-TableColumnHeaderCell:nth-child(2),
-.admin-server-table .rt-TableCell:nth-child(2) { width: 190px; }
+.admin-server-table .rt-TableCell:nth-child(2) { width: 12.5%; }
 .admin-server-table .rt-TableColumnHeaderCell:nth-child(3),
-.admin-server-table .rt-TableCell:nth-child(3) { width: 126px; }
+.admin-server-table .rt-TableCell:nth-child(3) { width: 7%; }
 .admin-server-table .rt-TableColumnHeaderCell:nth-child(4),
-.admin-server-table .rt-TableCell:nth-child(4) { width: 206px; }
+.admin-server-table .rt-TableCell:nth-child(4) { width: 14%; }
 .admin-server-table .rt-TableColumnHeaderCell:nth-child(5),
-.admin-server-table .rt-TableCell:nth-child(5) { width: 150px; }
+.admin-server-table .rt-TableCell:nth-child(5) { width: 9%; }
 .admin-server-table .rt-TableColumnHeaderCell:nth-child(6),
-.admin-server-table .rt-TableCell:nth-child(6) { width: 112px; }
+.admin-server-table .rt-TableCell:nth-child(6) { width: 7%; }
 .admin-server-table .rt-TableColumnHeaderCell:nth-child(7),
 .admin-server-table .rt-TableCell:nth-child(7),
 .admin-server-table .rt-TableColumnHeaderCell:nth-child(8),
 .admin-server-table .rt-TableCell:nth-child(8),
 .admin-server-table .rt-TableColumnHeaderCell:nth-child(9),
-.admin-server-table .rt-TableCell:nth-child(9) { width: 124px; }
+.admin-server-table .rt-TableCell:nth-child(9) { width: 7.2%; }
 .admin-server-table .rt-TableColumnHeaderCell:nth-child(10),
-.admin-server-table .rt-TableCell:nth-child(10) { width: 150px; }
+.admin-server-table .rt-TableCell:nth-child(10) { width: 8.5%; }
 .admin-server-table .rt-TableColumnHeaderCell:nth-child(11),
-.admin-server-table .rt-TableCell:nth-child(11) { width: 166px; }
+.admin-server-table .rt-TableCell:nth-child(11) { width: 9%; }
 .admin-server-table .rt-TableColumnHeaderCell:nth-child(12),
-.admin-server-table .rt-TableCell:nth-child(12) { width: 112px; }
+.admin-server-table .rt-TableCell:nth-child(12) { width: 6%; }
 .admin-server-table .rt-TableColumnHeaderCell:nth-child(13),
-.admin-server-table .rt-TableCell:nth-child(13) { width: 84px; }
+.admin-server-table .rt-TableCell:nth-child(13) { width: 5%; }
 .admin-server-table .rt-TableColumnHeaderCell:nth-child(14),
-.admin-server-table .rt-TableCell:nth-child(14) { width: 118px; }
+.admin-server-table .rt-TableCell:nth-child(14) { width: 7%; }
 
 .admin-server-table-row {
   background: color-mix(in srgb, var(--monitor-panel) 92%, transparent);
@@ -3513,17 +3522,28 @@ html[data-monitor-theme='next'] .node-network-value strong {
 .admin-server-ip-stack {
   min-width: 0;
   display: grid;
-  gap: 2px;
+  gap: 1px;
 }
 
 .admin-server-table .admin-ip-line {
-  min-height: 18px;
+  min-height: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  gap: 2px;
 }
 
 .admin-server-table .admin-ip-copy {
-  width: 20px !important;
-  min-width: 20px !important;
-  height: 20px !important;
+  width: 18px !important;
+  min-width: 18px !important;
+  height: 18px !important;
+}
+
+.admin-server-table .admin-ip-value {
+  font-size: 11px !important;
+  line-height: 1.08 !important;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .admin-server-system-cell {
@@ -3553,9 +3573,17 @@ html[data-monitor-theme='next'] .node-network-value strong {
 .admin-server-resource-cell {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(62px, 1fr) 42px;
+  grid-template-columns: minmax(34px, 1fr) 38px;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
+}
+
+.admin-server-status-cell {
+  gap: 2px !important;
+}
+
+.admin-server-status-cell .rt-Badge {
+  width: fit-content;
 }
 
 .admin-server-resource-cell .rt-Text {
