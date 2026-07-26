@@ -339,7 +339,7 @@ export default function NodeCard({ client, live, online, includeHidden = false }
                 currency={client.currency}
                 expired_at={client.expired_at}
                 showTags={false}
-                showExpiry
+                showExpiry={false}
               />
             </span>
             <NodeIpBadges client={client} className="node-card-title-ip-badges" />
@@ -361,7 +361,7 @@ export default function NodeCard({ client, live, online, includeHidden = false }
                     currency={client.currency}
                     expired_at={client.expired_at}
                     showTags={false}
-                    showExpiry
+                    showExpiry={false}
                   />
                 </span>
               </div>
