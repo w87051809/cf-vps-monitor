@@ -267,6 +267,20 @@ function formatDetailTime(value?: string | null) {
   return value ? new Date(value).toLocaleString('zh-CN') : '-';
 }
 
+function formatCreatedDays(value?: string | null) {
+  if (!value) return '-';
+
+  const createdAt = new Date(value);
+  if (Number.isNaN(createdAt.getTime())) return '-';
+
+  const now = new Date();
+  const createdDate = Date.UTC(createdAt.getFullYear(), createdAt.getMonth(), createdAt.getDate());
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.floor((today - createdDate) / 86_400_000) + 1;
+
+  return `${Math.max(1, days)} 天`;
+}
+
 function SortableNodeCard({ node, selected, onSelect, liveData, onDetail, onEdit, onDelete, onCmd, onRotateToken, dragDisabled }: SortableRowProps) {
   const isOnline = liveData.online.includes(node.uuid);
   const agentVersion = normalizeAgentVersion(node.version) || '-';
@@ -669,7 +683,9 @@ function GenerateCommandDialog({ client, open, onOpenChange }: { client: Command
 
 function DetailDialog({ client, open, onOpenChange }: { client: AdminClient; open: boolean; onOpenChange: (v: boolean) => void }) {
   const fields: [string, string][] = [
-    ['UUID', client.uuid], ['名称', client.name], ['IPv4', client.ipv4 || '-'], ['IPv6', client.ipv6 || '-'],
+    ['UUID', client.uuid], ['名称', client.name],
+    ['创建时间', formatDetailTime(client.created_at)], ['已创建', formatCreatedDays(client.created_at)],
+    ['IPv4', client.ipv4 || '-'], ['IPv6', client.ipv6 || '-'],
     ['操作系统', client.os || '-'], ['架构', client.arch || '-'], ['内核', client.kernel_version || '-'],
     ['虚拟化', client.virtualization || '-'], ['CPU', client.cpu_name || '-'], ['CPU核心', String(client.cpu_cores || '-')],
     ['GPU', client.gpu_name || '-'], ['总内存', formatBytes(client.mem_total)], ['总磁盘', formatBytes(client.disk_total)],
@@ -678,7 +694,6 @@ function DetailDialog({ client, open, onOpenChange }: { client: AdminClient; ope
     ['Token 最近使用', formatDetailTime(client.token_last_used_at)],
     ['Token 最近使用 IP', client.token_last_used_ip || '-'],
     ['Token 轮换时间', formatDetailTime(client.token_rotated_at)],
-    ['创建时间', formatDetailTime(client.created_at)],
     ['更新时间', formatDetailTime(client.updated_at)],
   ];
 
