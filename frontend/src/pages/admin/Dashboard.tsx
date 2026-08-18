@@ -148,6 +148,8 @@ function applyAdminClientUpdate(current: AdminClient[], detail?: PublicDataUpdat
 
 interface SortableRowProps {
   node: AdminClient;
+  displayIndex: number;
+  selectionMode: boolean;
   selected: boolean;
   onSelect: (uuid: string) => void;
   liveData: LiveDataMap;
@@ -281,7 +283,11 @@ function formatCreatedDays(value?: string | null) {
   return `${Math.max(1, days)} 天`;
 }
 
-function SortableNodeCard({ node, selected, onSelect, liveData, onDetail, onEdit, onDelete, onCmd, onRotateToken, dragDisabled }: SortableRowProps) {
+function formatNodeOrder(displayIndex: number) {
+  return String(displayIndex).padStart(3, '0');
+}
+
+function SortableNodeCard({ node, displayIndex, selectionMode, selected, onSelect, liveData, onDetail, onEdit, onDelete, onCmd, onRotateToken, dragDisabled }: SortableRowProps) {
   const isOnline = liveData.online.includes(node.uuid);
   const agentVersion = normalizeAgentVersion(node.version) || '-';
   const systemVersion = formatSystemVersion(node);
@@ -326,7 +332,11 @@ function SortableNodeCard({ node, selected, onSelect, liveData, onDetail, onEdit
                 <GripVertical size={15} />
               </button>
             </Tooltip>
-            <Checkbox className="admin-node-checkbox" checked={selected} onCheckedChange={() => onSelect(node.uuid)} />
+            {selectionMode ? (
+              <Checkbox className="admin-node-checkbox" checked={selected} onCheckedChange={() => onSelect(node.uuid)} />
+            ) : (
+              <Text className="admin-node-order-number" size="1" color="gray">{formatNodeOrder(displayIndex)}</Text>
+            )}
           </div>
 
           <button
@@ -392,7 +402,7 @@ function SortableNodeCard({ node, selected, onSelect, liveData, onDetail, onEdit
   );
 }
 
-function SortableNodeTableRow({ node, selected, onSelect, liveData, onDetail, onEdit, onDelete, onCmd, onRotateToken, dragDisabled }: SortableRowProps) {
+function SortableNodeTableRow({ node, displayIndex, selectionMode, selected, onSelect, liveData, onDetail, onEdit, onDelete, onCmd, onRotateToken, dragDisabled }: SortableRowProps) {
   const isOnline = liveData.online.includes(node.uuid);
   const agentVersion = normalizeAgentVersion(node.version) || '-';
   const systemVersion = formatSystemVersion(node);
@@ -443,7 +453,11 @@ function SortableNodeTableRow({ node, selected, onSelect, liveData, onDetail, on
               <GripVertical size={14} />
             </button>
           </Tooltip>
-          <Checkbox className="admin-node-checkbox" checked={selected} onCheckedChange={() => onSelect(node.uuid)} />
+          {selectionMode ? (
+            <Checkbox className="admin-node-checkbox" checked={selected} onCheckedChange={() => onSelect(node.uuid)} />
+          ) : (
+            <Text className="admin-node-order-number" size="1" color="gray">{formatNodeOrder(displayIndex)}</Text>
+          )}
         </div>
       </Table.Cell>
       <Table.Cell>
@@ -1057,8 +1071,14 @@ export default function AdminDashboard() {
   );
 
   // 批量选择
+  const [selectionMode, setSelectionMode] = useState(false);
   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
+
+  const toggleSelectionMode = () => {
+    if (selectionMode) setSelectedNodes([]);
+    setSelectionMode((value) => !value);
+  };
 
   const toggleSelect = (uuid: string) => {
     setSelectedNodes(prev => prev.includes(uuid) ? prev.filter(id => id !== uuid) : [...prev, uuid]);
@@ -1271,7 +1291,7 @@ export default function AdminDashboard() {
               <IconButton className="admin-refresh-button" variant="soft" size="1" onClick={() => { loadClients(true); refreshLive(); }} title="刷新"><RefreshCw size={14} /></IconButton>
             </Flex>
 
-            {selectedNodes.length > 0 && (
+            {selectionMode && selectedNodes.length > 0 && (
               <Flex className="admin-selection-inline" gap="2" align="center">
                 <Badge variant="soft" color="blue">已选 {selectedNodes.length}</Badge>
                 {selectedVisibleCount !== selectedNodes.length && (
@@ -1316,24 +1336,36 @@ export default function AdminDashboard() {
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={filteredUuids} strategy={rectSortingStrategy}>
             <Flex className="admin-node-card-panel-header" justify="between" align="center" gap="2">
-              <Text size="2" weight="bold">服务器节点</Text>
+              <Flex align="center" gap="2">
+                <Text size="2" weight="bold">服务器节点</Text>
+                <Button
+                  variant={selectionMode ? 'soft' : 'ghost'}
+                  size="1"
+                  aria-pressed={selectionMode}
+                  onClick={toggleSelectionMode}
+                >
+                  <Pencil size={13} /> {selectionMode ? '完成' : '编辑'}
+                </Button>
+              </Flex>
               <Flex align="center" gap="2">
                 <Text size="1" color="gray">当前 {filtered.length} 个</Text>
                 <SegmentedControl.Root value={viewMode} size="1" onValueChange={(value) => changeViewMode(value as AdminServerViewMode)}>
                   <SegmentedControl.Item value="cards">卡片</SegmentedControl.Item>
                   <SegmentedControl.Item value="table">表格</SegmentedControl.Item>
                 </SegmentedControl.Root>
-                <Checkbox checked={allFilteredSelected} onCheckedChange={toggleSelectAll} />
+                {selectionMode && <Checkbox checked={allFilteredSelected} onCheckedChange={toggleSelectAll} />}
               </Flex>
             </Flex>
             {filtered.length === 0 ? (
               <Text align="center" color="gray" style={{ display: 'block', padding: 24 }}>{search ? '未找到匹配的服务器' : '暂无服务器'}</Text>
             ) : viewMode === 'cards' ? (
               <div className="admin-node-card-grid">
-                {filtered.map((client) => (
+                {filtered.map((client, index) => (
                   <SortableNodeCard
                     key={client.uuid}
                     node={client}
+                    displayIndex={index + 1}
+                    selectionMode={selectionMode}
                     selected={selectedNodes.includes(client.uuid)}
                     onSelect={toggleSelect}
                     liveData={liveData}
@@ -1367,10 +1399,12 @@ export default function AdminDashboard() {
                     </Table.Row>
                   </Table.Header>
                   <Table.Body>
-                    {filtered.map((client) => (
+                    {filtered.map((client, index) => (
                       <SortableNodeTableRow
                         key={client.uuid}
                         node={client}
+                        displayIndex={index + 1}
+                        selectionMode={selectionMode}
                         selected={selectedNodes.includes(client.uuid)}
                         onSelect={toggleSelect}
                         liveData={liveData}

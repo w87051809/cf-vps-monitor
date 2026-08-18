@@ -3476,6 +3476,14 @@ html[data-monitor-theme='next'] .node-network-value strong {
   gap: 3px;
 }
 
+.admin-node-order-number {
+  min-width: 24px;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
 .admin-server-name-button {
   width: 100%;
   min-width: 0;
