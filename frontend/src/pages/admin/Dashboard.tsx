@@ -48,6 +48,7 @@ import {
   buildAgentUninstallAllCommand,
   defaultAgentInstallOptions,
   normalizeServerUrl,
+  SERV00_FIRST_USE_COMMAND,
 } from '../../utils/agentInstallCommand';
 import {
   AdminSortKey,
@@ -674,6 +675,29 @@ function GenerateCommandDialog({ client, open, onOpenChange }: { client: Command
             <FieldInput label="流量重置日期" value={installOptions.trafficResetDay} onChange={(v) => setOption('trafficResetDay', v)} type="number" min={1} step={1} placeholder="1" />
           </div>
         </Flex>
+
+        {platform === 'unix' && (
+          <div className="serv00-first-use-notice">
+            <Flex className="serv00-first-use-header" align="center" justify="between" gap="3">
+              <div>
+                <Text size="2" weight="bold">Serv00 首次安装（只需执行一次）</Text>
+                <Text className="serv00-first-use-description" size="2" color="gray">
+                  如果这是 Serv00 服务器，请先执行下面的命令。
+                </Text>
+              </div>
+              <Button
+                className="serv00-first-use-copy"
+                size="1"
+                variant="soft"
+                onClick={() => copyToClipboard(SERV00_FIRST_USE_COMMAND, 'Serv00 首次命令已复制')}
+              >
+                <Copy size={13} /> 复制首次命令
+              </Button>
+            </Flex>
+            <pre className="serv00-first-use-command"><code>{SERV00_FIRST_USE_COMMAND}</code></pre>
+            <Text size="1" color="gray">执行后会退出 SSH；重新连接服务器，再执行下方正式安装命令。</Text>
+          </div>
+        )}
 
         <Text size="2" weight="bold" mt="2">命令</Text>
         <TextArea

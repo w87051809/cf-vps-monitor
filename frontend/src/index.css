@@ -2335,6 +2335,37 @@ html[data-monitor-theme='monitor'] .node-filter-panel {
   resize: vertical;
 }
 
+.serv00-first-use-notice {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--amber-7);
+  border-radius: 10px;
+  background: var(--amber-2);
+}
+
+.serv00-first-use-description {
+  display: block;
+  margin-top: 3px;
+}
+
+.serv00-first-use-command {
+  margin: 10px 0 8px;
+  padding: 10px 12px;
+  overflow: auto;
+  border: 1px solid var(--gray-6);
+  border-radius: 8px;
+  background: var(--gray-2);
+  color: var(--gray-12);
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.serv00-first-use-copy {
+  flex: 0 0 auto;
+}
+
 .admin-node-edit-form {
   width: min(100%, 540px);
   margin-inline: auto;
@@ -3454,6 +3485,11 @@ html[data-monitor-theme='monitor'] .node-filter-panel {
   .billing-switch-row,
   .install-option-checks {
     grid-template-columns: 1fr;
+  }
+
+  .serv00-first-use-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .billing-price-grid {

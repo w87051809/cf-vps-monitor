@@ -10,7 +10,12 @@ const commandSource = await readFile(new URL('./agentInstallCommand.ts', import.
 await writeFile(join(tmp, 'projectLinks.ts'), projectLinksSource);
 await writeFile(join(tmp, 'agentInstallCommand.ts'), commandSource.replace("from './projectLinks'", "from './projectLinks.ts'"));
 
-const { buildAgentInstallCommand, buildAgentUninstallAllCommand, defaultAgentInstallOptions } = await import(pathToFileURL(join(tmp, 'agentInstallCommand.ts')).href);
+const {
+  buildAgentInstallCommand,
+  buildAgentUninstallAllCommand,
+  defaultAgentInstallOptions,
+  SERV00_FIRST_USE_COMMAND,
+} = await import(pathToFileURL(join(tmp, 'agentInstallCommand.ts')).href);
 const { CF_MONITOR_REPOSITORY } = await import(pathToFileURL(join(tmp, 'projectLinks.ts')).href);
 
 const base = {
@@ -21,6 +26,8 @@ const base = {
   nodeName: 'node-123',
 };
 const bundledUnixInstaller = "(curl -fsSL --connect-timeout 20 --max-time 90 --retry 3 'https://panel.example/agent/install.sh' || wget -qO- -T 20 -t 3 'https://panel.example/agent/install.sh')";
+
+assert.equal(SERV00_FIRST_USE_COMMAND, 'devil binexec on\nexit');
 
 assert.equal(
   buildAgentInstallCommand({ platform: 'unix', ...base }),

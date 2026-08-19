@@ -2,6 +2,8 @@ import { CF_MONITOR_REPOSITORY } from './projectLinks';
 
 export type AgentInstallPlatform = 'unix' | 'windows';
 
+export const SERV00_FIRST_USE_COMMAND = 'devil binexec on\nexit';
+
 export type AgentInstallOptions = {
   ghproxy: string;
   downloadProxy: string;
