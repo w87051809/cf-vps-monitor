@@ -226,6 +226,30 @@ copy_binary_to() {
   fi
 }
 
+check_user_execution_allowed() {
+  if [ "$DRY_RUN" = "1" ]; then
+    echo "[dry-run] verify executable permission in ${INSTALL_DIR}"
+    return 0
+  fi
+
+  probe="${INSTALL_DIR}/.cf-vps-monitor-exec-check.$$"
+  printf '#!/bin/sh\nexit 0\n' > "$probe"
+  chmod 0700 "$probe"
+  if "$probe" >/dev/null 2>&1; then
+    rm -f "$probe"
+    return 0
+  fi
+  rm -f "$probe"
+
+  if has devil; then
+    echo "Cannot execute user files in ${INSTALL_DIR}; Serv00 Binexec is probably disabled." >&2
+    echo "Run: devil binexec on" >&2
+    echo "Then log out of SSH, reconnect, and run the installer again." >&2
+    exit 1
+  fi
+  die "Cannot execute user files in ${INSTALL_DIR}. Enable executable permission for this account or choose another install directory."
+}
+
 stop_existing_agent() {
   case "${SERVICE_MODE:-}" in
     openwrt)
@@ -249,8 +273,8 @@ stop_existing_agent() {
       fi
       ;;
     user)
-      if [ -x "${INSTALL_DIR}/stop.sh" ]; then
-        run "${INSTALL_DIR}/stop.sh" || true
+      if [ -f "${INSTALL_DIR}/stop.sh" ]; then
+        run /bin/sh "${INSTALL_DIR}/stop.sh" || true
       fi
       ;;
   esac
@@ -803,11 +827,11 @@ install_user_autostart() {
     return 0
   fi
   if [ "$DRY_RUN" = "1" ]; then
-    echo "[dry-run] add crontab @reboot ${INSTALL_DIR}/start.sh # ${marker}"
+    echo "[dry-run] add crontab @reboot /bin/sh ${INSTALL_DIR}/start.sh # ${marker}"
     return 0
   fi
   tmp="$(mktemp "${TMPDIR:-/tmp}/cf-vps-monitor-cron.XXXXXX")"
-  (crontab -l 2>/dev/null | grep -v "$marker" || true; printf '@reboot %s # %s\n' "$INSTALL_DIR/start.sh" "$marker") > "$tmp"
+  (crontab -l 2>/dev/null | grep -v "$marker" || true; printf '@reboot /bin/sh %s # %s\n' "$INSTALL_DIR/start.sh" "$marker") > "$tmp"
   crontab "$tmp"
   rm -f "$tmp"
   echo "Autostart: crontab @reboot configured."
@@ -818,6 +842,7 @@ install_user_mode() {
   if [ "$DRY_RUN" != "1" ]; then
     chmod 700 "$INSTALL_DIR" "$CONFIG_DIR" "$STATE_DIR"
   fi
+  check_user_execution_allowed
   stop_existing_agent
   copy_binary_to "$WORK_BIN" "$INSTALL_DIR/cf-vps-monitor-agent"
   write_file "$ENV_FILE" "600" "$(env_content)"
@@ -847,7 +872,7 @@ if [ -s "\$PID_FILE" ]; then
     *) if kill -0 "\$pid" 2>/dev/null; then echo "CF VPS Monitor Agent already running: \$pid"; exit 0; fi ;;
   esac
 fi
-nohup "\$RUNNER" >> "\$LOG_FILE" 2>&1 &
+nohup /bin/sh "\$RUNNER" >> "\$LOG_FILE" 2>&1 &
 echo \$! > "\$PID_FILE"
 echo "CF VPS Monitor Agent started: \$(cat "\$PID_FILE")"
 EOF
@@ -890,7 +915,7 @@ MARKER=$(shell_quote "cf-vps-monitor:${BASE_ID}")
 INSTALL_DIR=$(shell_quote "$INSTALL_DIR")
 ENV_FILE=$(shell_quote "$ENV_FILE")
 STATE_DIR=$(shell_quote "$STATE_DIR")
-"\$INSTALL_DIR/stop.sh" >/dev/null 2>&1 || true
+/bin/sh "\$INSTALL_DIR/stop.sh" >/dev/null 2>&1 || true
 if command -v crontab >/dev/null 2>&1; then
   tmp="\$(mktemp "\${TMPDIR:-/tmp}/cf-vps-monitor-cron.XXXXXX")"
   crontab -l 2>/dev/null | grep -v "\$MARKER" > "\$tmp" || true
@@ -904,18 +929,18 @@ EOF
   write_file "${INSTALL_DIR}/uninstall.sh" "700" "$UNINSTALL_CONTENT"
 
   install_user_autostart
-  run "${INSTALL_DIR}/start.sh"
+  run /bin/sh "${INSTALL_DIR}/start.sh"
   echo "Installed CF VPS Monitor Agent in user mode."
   echo "Install dir: ${INSTALL_DIR}"
-  echo "Status:      ${INSTALL_DIR}/status.sh"
-  echo "Stop:        ${INSTALL_DIR}/stop.sh"
-  echo "Uninstall:   ${INSTALL_DIR}/uninstall.sh"
+  echo "Status:      /bin/sh ${INSTALL_DIR}/status.sh"
+  echo "Stop:        /bin/sh ${INSTALL_DIR}/stop.sh"
+  echo "Uninstall:   /bin/sh ${INSTALL_DIR}/uninstall.sh"
 }
 
 uninstall_user_mode() {
   marker="cf-vps-monitor:${BASE_ID}"
-  if [ -x "${INSTALL_DIR}/stop.sh" ]; then
-    run "${INSTALL_DIR}/stop.sh" || true
+  if [ -f "${INSTALL_DIR}/stop.sh" ]; then
+    run /bin/sh "${INSTALL_DIR}/stop.sh" || true
   fi
   if has crontab; then
     if [ "$DRY_RUN" = "1" ]; then

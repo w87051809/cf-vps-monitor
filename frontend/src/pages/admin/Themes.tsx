@@ -91,14 +91,6 @@ const cssExampleSnippets = [
 }`,
   },
   {
-    name: '节点卡片',
-    css: `/* 节点卡片 */
-.node-card {
-  border-radius: 16px;
-  box-shadow: 0 14px 38px rgba(15, 23, 42, 0.1);
-}`,
-  },
-  {
     name: '统计卡片',
     css: `/* 统计卡片 */
 .monitor-stat-card {
@@ -110,15 +102,6 @@ const cssExampleSnippets = [
     css: `/* 进度条和状态色 */
 .usage-bar-fill {
   background: linear-gradient(90deg, #22c55e, #0ea5e9);
-}`,
-  },
-  {
-    name: '移动端',
-    css: `/* 移动端 */
-@media (max-width: 640px) {
-  .node-card {
-    border-radius: 12px;
-  }
 }`,
   },
 ];

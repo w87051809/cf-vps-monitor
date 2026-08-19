@@ -122,7 +122,6 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Layout />}>
                   <Route index element={<LiveDataRoute><PublicIndexRoute /></LiveDataRoute>} />
-                  <Route path="instance/:uuid" element={<Navigate to="/" replace />} />
                 </Route>
 
                 <Route path="/87051809/login" element={<Login />} />

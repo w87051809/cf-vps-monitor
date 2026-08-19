@@ -10,8 +10,4 @@ assert.doesNotMatch(tableSource, /react-router-dom|\/instance\//);
 assert.doesNotMatch(displaySource, /viewMode|gridRenderer|网格视图|表格视图/);
 assert.match(displaySource, /<NodeTable nodes=\{filteredNodes\} liveData=\{liveData\} \/>/);
 assert.doesNotMatch(indexSource, /components\/NodeCard|renderGrid|node-card-grid/);
-assert.match(
-  appSource,
-  /<Route path="instance\/:uuid" element=\{<Navigate to="\/" replace \/>\} \/>/,
-);
-assert.doesNotMatch(appSource, /loadInstance|<Instance\s*\/>/);
+assert.doesNotMatch(appSource, /instance\/:uuid|loadInstance|<Instance\s*\/>/);
