@@ -1,8 +1,8 @@
 /**
  * NodeDisplay - public monitor list controls.
- * Keeps search, group filtering, status filtering, and grid/table switching.
+ * Keeps search, group filtering, status filtering, and the fixed table layout.
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Badge,
   Box,
@@ -13,28 +13,22 @@ import {
   Text,
   TextField,
 } from '@radix-ui/themes';
-import { Grid3X3, Search, Table2, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import NodeTable from './NodeTable';
 import { ClientInfo, LiveDataMap } from '../types';
-import { getLocalStorageItem, setLocalStorageItem } from '../utils/browserStorage';
 import { filterMonitorNodes, getNodeGroups, NodeStatusFilter } from '../utils/monitorView';
 
 interface NodeDisplayProps {
   nodes: ClientInfo[];
   liveData: LiveDataMap;
-  gridRenderer: (nodes: ClientInfo[], liveData: LiveDataMap) => React.ReactNode;
   offlinePosition?: 'first' | 'keep' | 'last';
 }
 
 export default function NodeDisplay({
   nodes,
   liveData,
-  gridRenderer,
   offlinePosition = 'keep',
 }: NodeDisplayProps) {
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>(() => {
-    return getLocalStorageItem('nodeViewMode') === 'table' ? 'table' : 'grid';
-  });
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('all');
   const [statusFilter, setStatusFilter] = useState<NodeStatusFilter>('all');
@@ -61,11 +55,6 @@ export default function NodeDisplay({
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [searchTerm]);
-
-  const toggleView = (mode: 'grid' | 'table') => {
-    setViewMode(mode);
-    setLocalStorageItem('nodeViewMode', mode);
-  };
 
   const filteredNodes = useMemo(() => {
     return filterMonitorNodes(nodes, liveData, {
@@ -155,26 +144,6 @@ export default function NodeDisplay({
               </Box>
             )}
 
-            <Box className="node-filter-spacer" aria-hidden="true" />
-
-            <Flex className="node-view-toggle" align="center" gap="1">
-              <IconButton
-                aria-label="网格视图"
-                variant={viewMode === 'grid' ? 'solid' : 'soft'}
-                size="2"
-                onClick={() => toggleView('grid')}
-              >
-                <Grid3X3 size={16} />
-              </IconButton>
-              <IconButton
-                aria-label="表格视图"
-                variant={viewMode === 'table' ? 'solid' : 'soft'}
-                size="2"
-                onClick={() => toggleView('table')}
-              >
-                <Table2 size={16} />
-              </IconButton>
-            </Flex>
           </Flex>
         </Flex>
       </Box>
@@ -186,11 +155,7 @@ export default function NodeDisplay({
           </Text>
         </Flex>
       ) : (
-        <>
-          {viewMode === 'grid'
-            ? gridRenderer(filteredNodes, liveData)
-            : <NodeTable nodes={filteredNodes} liveData={liveData} />}
-        </>
+        <NodeTable nodes={filteredNodes} liveData={liveData} />
       )}
     </Box>
   );

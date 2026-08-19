@@ -20,7 +20,6 @@ import { subscribeWebsiteMonitorsUpdated, type WebsiteMonitorsUpdateDetail } fro
 import { notifyPublicDataReady, subscribePublicDataUpdated } from '../utils/publicDataEvents';
 import type { PublicDataUpdateDetail } from '../utils/publicDataEvents';
 
-const NodeCard = React.lazy(() => import('../components/NodeCard'));
 const NodeDisplay = React.lazy(() => import('../components/NodeDisplay'));
 
 /* ========== Status Card Visibility (persisted in localStorage) ========== */
@@ -30,13 +29,6 @@ const fallbackVisibility: StatusCardsVisibility = { ...defaultStatusCardVisibili
 
 type OfflinePosition = 'first' | 'keep' | 'last';
 
-export const nodeCardGridTemplateColumns = 'repeat(auto-fill, 320px)';
-export const mobileNodeCardGridTemplateColumns = '1fr';
-
-const nodeCardGridStyle = {
-  '--node-card-grid-template-columns': nodeCardGridTemplateColumns,
-  '--node-card-grid-template-columns-mobile': mobileNodeCardGridTemplateColumns,
-} as React.CSSProperties;
 const WEBSITE_MONITOR_REFRESH_MS = 120_000;
 const WEBSITE_MONITOR_PERIODS = [1, 24, 72] as const;
 
@@ -433,20 +425,6 @@ export default function Index() {
 
   const statusCards = buildDashboardStatusCards(stats);
 
-  const renderGrid = (nodes: ClientInfo[], ld: LiveDataMap) => (
-    <Box className="node-card-grid" style={nodeCardGridStyle}>
-      {nodes.map(client => (
-        <NodeCard
-          key={client.uuid}
-          client={client}
-          live={ld.data[client.uuid]}
-          online={ld.online.includes(client.uuid)}
-          includeHidden={isAuthenticated}
-        />
-      ))}
-    </Box>
-  );
-
   return (
     <div className="monitor-dashboard-page">
       {monitorMode === 'servers' && (
@@ -475,7 +453,6 @@ export default function Index() {
           <NodeDisplay
             nodes={sortedClients}
             liveData={liveMap}
-            gridRenderer={renderGrid}
             offlinePosition={offlinePosition}
           />
         </React.Suspense>
