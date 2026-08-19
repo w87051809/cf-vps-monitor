@@ -43,6 +43,7 @@ import {
   type NotificationMessage,
 } from './utils/notification-templates';
 import { evaluateOfflineNotificationEvent } from './utils/offline-notification';
+import { readLiveSnapshot, type LiveSnapshot } from './utils/do-response';
 import type {
   Client as MonitorClient,
   ExpiryNotification,
@@ -500,6 +501,7 @@ interface ScheduledRunContext {
   getSettings(): Promise<ScheduledSettings>;
   getAdminSettings(): Promise<ScheduledAdminSettings>;
   getClients(clientIds?: string[]): Promise<ScheduledMonitorClient[]>;
+  getLiveSnapshot(): Promise<LiveSnapshot | null>;
 }
 
 function normalizeScheduledClientIds(clientIds: string[] | undefined): string[] | null {
@@ -517,6 +519,7 @@ export function createScheduledRunContext(env: Bindings): ScheduledRunContext {
   let settingsPromise: Promise<ScheduledSettings> | null = null;
   let adminSettingsPromise: Promise<ScheduledAdminSettings> | null = null;
   let clientsPromise: Promise<ScheduledMonitorClient[]> | null = null;
+  let liveSnapshotPromise: Promise<LiveSnapshot | null> | null = null;
   const clientsByIdsPromises = new Map<string, Promise<ScheduledMonitorClient[]>>();
 
   return {
@@ -549,6 +552,13 @@ export function createScheduledRunContext(env: Bindings): ScheduledRunContext {
         clientsByIdsPromises.set(cacheKey, promise);
       }
       return promise;
+    },
+    getLiveSnapshot() {
+      liveSnapshotPromise ||= env.LIVE_DATA
+        .get(env.LIVE_DATA.idFromName('global'))
+        .fetch(new Request('https://do/live?include_hidden=1', { method: 'GET' }))
+        .then(response => readLiveSnapshot(response));
+      return liveSnapshotPromise;
     },
   };
 }
@@ -614,6 +624,16 @@ async function runOfflineCheck(context: ScheduledRunContext, now: Date): Promise
     enabled.map(item => item.client),
   );
   const latestMap = new Map(latestTimes.map(row => [row.client, row.last_time]));
+  // 实时状态读取失败时仍可退回历史记录判断，不能让一次 DO 读取故障中断整轮告警检查。
+  const liveSnapshot = await context.getLiveSnapshot().catch(() => null);
+  const liveLastReportMap = new Map<string, number>();
+  for (const liveClient of liveSnapshot?.clients || []) {
+    const uuid = typeof liveClient.uuid === 'string' ? liveClient.uuid : '';
+    const lastReportTime = Number(liveClient.lastReportTime);
+    if (uuid && Number.isFinite(lastReportTime) && lastReportTime > 0) {
+      liveLastReportMap.set(uuid, lastReportTime);
+    }
+  }
 
   for (const item of enabled) {
     const client = clientMap.get(item.client);
@@ -624,6 +644,7 @@ async function runOfflineCheck(context: ScheduledRunContext, now: Date): Promise
       now,
       clientCreatedAt: client.created_at,
       lastTime: latestMap.get(item.client),
+      liveLastReportTime: liveLastReportMap.get(item.client),
       lastNotified: item.last_notified,
       gracePeriodSec: gracePeriod,
       notifyNeverReported,

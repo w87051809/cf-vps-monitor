@@ -11,18 +11,41 @@ export type OfflineNotificationEvent =
       recoveredAt: string;
     };
 
+function validTime(value: string | number | null | undefined): { ms: number; label: string } | null {
+  if (value === null || value === undefined || value === '') return null;
+  const ms = typeof value === 'number' ? value : new Date(value).getTime();
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  return {
+    ms,
+    label: typeof value === 'number' ? new Date(ms).toISOString() : value,
+  };
+}
+
+export function resolveLatestReportTime(
+  persistedLastTime: string | null | undefined,
+  liveLastReportTime: string | number | null | undefined,
+): string | null {
+  const persisted = validTime(persistedLastTime);
+  const live = validTime(liveLastReportTime);
+  if (!persisted) return live?.label || null;
+  if (!live) return persisted.label;
+  return live.ms > persisted.ms ? live.label : persisted.label;
+}
+
 export function evaluateOfflineNotificationEvent(args: {
   now: Date;
   clientCreatedAt: string | null | undefined;
   lastTime: string | null | undefined;
+  liveLastReportTime?: string | number | null;
   lastNotified: string | null | undefined;
   gracePeriodSec: number;
   notifyNeverReported: boolean;
 }): OfflineNotificationEvent | null {
   const graceMs = Math.max(30, Number(args.gracePeriodSec || 180)) * 1000;
   const nowMs = args.now.getTime();
-  const neverReported = !args.lastTime;
-  const referenceTime = args.lastTime || (
+  const lastTime = resolveLatestReportTime(args.lastTime, args.liveLastReportTime);
+  const neverReported = !lastTime;
+  const referenceTime = lastTime || (
     args.notifyNeverReported ? args.clientCreatedAt : null
   );
   if (!referenceTime) return null;
@@ -42,6 +65,6 @@ export function evaluateOfflineNotificationEvent(args: {
     };
   }
 
-  if (!args.lastNotified || !args.lastTime) return null;
-  return { type: 'recovery', recoveredAt: args.lastTime };
+  if (!args.lastNotified || !lastTime) return null;
+  return { type: 'recovery', recoveredAt: lastTime };
 }
