@@ -12,7 +12,7 @@ import { notifyPublicDataUpdated } from '../../utils/publicDataEvents';
 import { buildApiRequest } from '../../utils/api';
 import type { SettingsLayoutOutletContext } from './SettingsLayout';
 
-const MIN_BACKUP_PASSWORD_LENGTH = 6;
+const MIN_BACKUP_PASSWORD_LENGTH = 15;
 const MAX_LOGO_BYTES = 1024 * 1024;
 
 function backupEncryptPasswordError(password: string): string | null {
@@ -104,7 +104,7 @@ export default function SettingsSite() {
 
   const handleDownloadBackup = async () => {
     const password = await requestPassword(
-      '请设置备份文件密码，不是管理员登录密码。至少 6 位。',
+      '请设置备份文件密码，不是管理员登录密码。至少 15 位。',
       {
         autocomplete: 'new-password',
         validate: backupEncryptPasswordError,
@@ -131,7 +131,7 @@ export default function SettingsSite() {
       });
       if (!password) return;
       const beforeRestorePassword = await requestPassword(
-        '恢复前会自动下载当前配置的加密备份。请设置临时备份文件密码，至少 6 位。',
+        '恢复前会自动下载当前配置的加密备份。请设置临时备份文件密码，至少 15 位。',
         {
           autocomplete: 'new-password',
           validate: backupEncryptPasswordError,

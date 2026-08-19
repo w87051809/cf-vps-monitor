@@ -56,9 +56,11 @@ export interface ParsedThemePackage {
 }
 
 const MAX_ZIP_BYTES = 2 * 1024 * 1024;
+const MAX_MANIFEST_BYTES = 256 * 1024;
 const MAX_CSS_BYTES = 256 * 1024;
 const MAX_IMAGE_BYTES = 512 * 1024;
 const MAX_ASSETS = 32;
+const MAX_UNCOMPRESSED_BYTES = MAX_MANIFEST_BYTES + MAX_CSS_BYTES + (MAX_ASSETS * MAX_IMAGE_BYTES);
 const MAX_CUSTOM_CSS_BYTES = 64 * 1024;
 const ALLOWED_EXTENSIONS = new Set(['.css', '.png', '.jpg', '.jpeg', '.webp', '.svg', '.json', '.woff2']);
 const FORBIDDEN_EXTENSIONS = new Set(['.js', '.html', '.htm', '.wasm', '.woff', '.ttf', '.otf', '.eot']);
@@ -227,18 +229,47 @@ export function base64ToBytes(base64: string): Uint8Array {
 
 export function parseThemeZip(zipBytes: Uint8Array): ParsedThemePackage {
   if (zipBytes.byteLength > MAX_ZIP_BYTES) throw new Error('theme zip is too large');
-  const files = unzipSync(zipBytes);
+  let fileCount = 0;
+  let totalOriginalSize = 0;
+  const normalizedPaths = new Set<string>();
+  const files = unzipSync(zipBytes, {
+    filter(file) {
+      if (file.name.endsWith('/')) return false;
+
+      const path = normalizeThemePath(file.name);
+      assertAllowedFile(path);
+      if (normalizedPaths.has(path)) throw new Error(`duplicate theme path: ${path}`);
+      normalizedPaths.add(path);
+
+      fileCount += 1;
+      if (fileCount > MAX_ASSETS + 1) throw new Error('theme package has too many files');
+      if (!Number.isSafeInteger(file.originalSize) || file.originalSize < 0) {
+        throw new Error(`theme file size is invalid: ${path}`);
+      }
+
+      const maxFileSize = path === 'cf-monitor-theme.json'
+        ? MAX_MANIFEST_BYTES
+        : extensionOf(path) === '.css'
+          ? MAX_CSS_BYTES
+          : MAX_IMAGE_BYTES;
+      if (file.originalSize > maxFileSize) throw new Error(`theme asset is too large: ${path}`);
+
+      totalOriginalSize += file.originalSize;
+      if (totalOriginalSize > MAX_UNCOMPRESSED_BYTES) {
+        throw new Error('theme package expands beyond the allowed size');
+      }
+      return true;
+    },
+  });
   const entries = Object.entries(files)
     .filter(([path]) => !path.endsWith('/'))
     .map(([rawPath, bytes]) => [normalizeThemePath(rawPath), bytes] as const);
-  if (entries.length > MAX_ASSETS + 1) throw new Error('theme package has too many files');
   const fileMap = new Map(entries);
 
   const manifestBytes = fileMap.get('cf-monitor-theme.json');
   if (!manifestBytes) throw new Error('theme manifest cf-monitor-theme.json is required');
   const manifest = normalizeThemeManifest(JSON.parse(strFromU8(manifestBytes)));
 
-  for (const [path] of entries) assertAllowedFile(path);
   const styleBytes = fileMap.get(manifest.style);
   if (!styleBytes) throw new Error('theme style file is missing');
   if (styleBytes.byteLength > MAX_CSS_BYTES) throw new Error('theme CSS is too large');

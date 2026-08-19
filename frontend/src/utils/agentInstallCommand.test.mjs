@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rmdir, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -20,10 +20,11 @@ const base = {
   instanceId: '33bc95df-513d-41be-8d98-30979fb17029',
   nodeName: 'node-123',
 };
+const bundledUnixInstaller = "(curl -fsSL --connect-timeout 20 --max-time 90 --retry 3 'https://panel.example/agent/install.sh' || wget -qO- -T 20 -t 3 'https://panel.example/agent/install.sh')";
 
 assert.equal(
   buildAgentInstallCommand({ platform: 'unix', ...base }),
-  `wget -qO- 'https://raw.githubusercontent.com/${CF_MONITOR_REPOSITORY}/refs/heads/main/agent/install.sh' | sh -s -- '-s' 'https://panel.example' '-t' 'token123' '-n' 'node-123' '-i' '33bc95df-513d-41be-8d98-30979fb17029'`,
+  `${bundledUnixInstaller} | sh -s -- '-s' 'https://panel.example' '-t' 'token123' '-n' 'node-123' '-i' '33bc95df-513d-41be-8d98-30979fb17029'`,
 );
 
 assert.equal(
@@ -32,7 +33,7 @@ assert.equal(
     ...base,
     options: { ...defaultAgentInstallOptions, trafficResetDay: '15', downloadProxy: '127.0.0.1:10808' },
   }),
-  `wget -qO- 'https://raw.githubusercontent.com/${CF_MONITOR_REPOSITORY}/refs/heads/main/agent/install.sh' | sh -s -- '-s' 'https://panel.example' '-t' 'token123' '-r' '15' '-n' 'node-123' '-i' '33bc95df-513d-41be-8d98-30979fb17029' '--proxy' 'http://127.0.0.1:10808'`,
+  `${bundledUnixInstaller} | sh -s -- '-s' 'https://panel.example' '-t' 'token123' '-r' '15' '-n' 'node-123' '-i' '33bc95df-513d-41be-8d98-30979fb17029' '--proxy' 'http://127.0.0.1:10808'`,
 );
 
 assert.equal(
@@ -41,7 +42,7 @@ assert.equal(
     ...base,
     options: { ...defaultAgentInstallOptions, installMode: 'user' },
   }),
-  `wget -qO- 'https://raw.githubusercontent.com/${CF_MONITOR_REPOSITORY}/refs/heads/main/agent/install.sh' | sh -s -- '-s' 'https://panel.example' '-t' 'token123' '-n' 'node-123' '-i' '33bc95df-513d-41be-8d98-30979fb17029' '--install-mode' 'user'`,
+  `${bundledUnixInstaller} | sh -s -- '-s' 'https://panel.example' '-t' 'token123' '-n' 'node-123' '-i' '33bc95df-513d-41be-8d98-30979fb17029' '--install-mode' 'user'`,
 );
 
 assert.equal(
@@ -49,4 +50,6 @@ assert.equal(
   `wget -qO- 'https://raw.githubusercontent.com/${CF_MONITOR_REPOSITORY}/refs/heads/main/agent/install.sh' | sh -s -- '--uninstall-all' '--yes'`,
 );
 
-await rm(tmp, { recursive: true, force: true });
+await unlink(join(tmp, 'projectLinks.ts'));
+await unlink(join(tmp, 'agentInstallCommand.ts'));
+await rmdir(tmp);

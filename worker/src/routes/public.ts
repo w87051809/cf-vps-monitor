@@ -41,7 +41,7 @@ const LOGIN_RATE_LIMIT_CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
 const LOGIN_FAILURE_AUDIT_THROTTLE_MS = 60 * 1000;
 const LOGIN_FAILURE_AUDIT_THROTTLE_MAX_ENTRIES = 512;
 const MAX_LOGIN_USERNAME_LENGTH = 128;
-const MAX_LOGIN_PASSWORD_LENGTH = 4096;
+const MAX_LOGIN_PASSWORD_LENGTH = 1024;
 const MAX_MFA_CHALLENGE_LENGTH = 4096;
 const MAX_MFA_CODE_LENGTH = 128;
 const MAX_PUBLIC_JSON_BYTES = 8 * 1024;
@@ -63,7 +63,7 @@ const PUBLIC_HISTORY_CACHE_MAX_ENTRIES = 256;
 const PUBLIC_METADATA_CACHE_MAX_ENTRIES = PUBLIC_HISTORY_CACHE_MAX_ENTRIES;
 const ADMIN_SESSION_EDGE_CACHE_SECONDS = 30;
 const LOGOUT_CLEAR_SITE_DATA_HEADER = '"cache"';
-const DUMMY_ADMIN_PASSWORD_HASH = 'pbkdf2_sha256$10000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+const DUMMY_ADMIN_PASSWORD_HASH = 'pbkdf2_sha256$600000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 const MAX_ADMIN_RECOVERY_KEY_LENGTH = 8192;
 const MAX_ADMIN_RECOVERY_USERNAME_BYTES = 64;
 const SITE_LOGO_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -107,11 +107,6 @@ async function timed<T>(metrics: TimingMetric[], name: string, fn: () => Promise
   } finally {
     metrics.push({ name, dur: performance.now() - started });
   }
-}
-
-function setServerTiming(c: PublicContext, metrics: TimingMetric[]): void {
-  if (metrics.length === 0) return;
-  c.header('Server-Timing', metrics.map(metric => `${metric.name};dur=${metric.dur.toFixed(1)}`).join(', '));
 }
 
 function adminSessionEdgeCacheRequest(userId: string, sessionVersion: number): Request {
@@ -918,7 +913,6 @@ async function completeAdminLogin(
   }
   runLoginBackground(c, db.insertAuditLog(database, user.username, 'login', '用户登录'));
 
-  setServerTiming(c, metrics);
   return c.json({
     csrf_token: csrfToken,
     user: {
@@ -1095,7 +1089,6 @@ publicRoutes.post('/login', async (c) => {
   if (retryAfter > 0) {
     c.header('Retry-After', String(retryAfter));
     await timed(metrics, 'audit_failure', () => auditLoginFailure(database, username, clientIp, 'rate_limited', nowMs));
-    setServerTiming(c, metrics);
     return c.json({ error: `登录尝试过于频繁，请 ${retryAfter} 秒后再试` }, 429);
   }
 
@@ -1106,7 +1099,6 @@ publicRoutes.post('/login', async (c) => {
     const failedAt = Date.now();
     await timed(metrics, 'db_record_failure', () => recordLoginFailure(database, rateLimitBuckets, failedAt, rateLimitStates));
     await timed(metrics, 'audit_failure', () => auditLoginFailure(database, username, clientIp, 'unknown_user', failedAt));
-    setServerTiming(c, metrics);
     if (userCount === 0) {
       return c.json({ error: '请先在登录页创建管理员账号' }, 409);
     }
@@ -1118,7 +1110,6 @@ publicRoutes.post('/login', async (c) => {
     const failedAt = Date.now();
     await timed(metrics, 'db_record_failure', () => recordLoginFailure(database, rateLimitBuckets, failedAt, rateLimitStates));
     await timed(metrics, 'audit_failure', () => auditLoginFailure(database, username, clientIp, 'invalid_password', failedAt));
-    setServerTiming(c, metrics);
     return c.json({ error: '用户名或密码错误' }, 401);
   }
 
@@ -1137,7 +1128,6 @@ publicRoutes.post('/login', async (c) => {
         sessionVersion: user.session_version,
         purpose: 'mfa-login',
       }, c.env));
-      setServerTiming(c, metrics);
       return c.json({
         code: 'MFA_REQUIRED',
         mfa_required: true,
@@ -1250,7 +1240,6 @@ publicRoutes.post('/login/mfa', async (c) => {
     const failedAt = Date.now();
     await timed(metrics, 'db_record_failure', () => recordLoginFailure(database, mfaBuckets, failedAt, rateLimitStates));
     await timed(metrics, 'audit_failure', () => auditLoginFailure(database, user.username, clientIp, 'invalid_mfa', failedAt));
-    setServerTiming(c, metrics);
     return c.json({ code: 'MFA_INVALID', error: '验证码或恢复码无效' }, 401);
   }
 

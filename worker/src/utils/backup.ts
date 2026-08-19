@@ -17,11 +17,11 @@ export const BACKUP_SCOPE = 'configuration';
 export const BACKUP_SENSITIVE_WARNING = 'This backup may contain client tokens, AutoDiscovery Key, Telegram credentials, and other configuration secrets. Store it securely.';
 export const BACKUP_ENCRYPTION_ALGORITHM = 'AES-GCM';
 export const BACKUP_KDF = 'PBKDF2-SHA256';
-export const BACKUP_KDF_ITERATIONS = 100_000;
+export const BACKUP_KDF_ITERATIONS = 600_000;
 export const BACKUP_SALT_BYTES = 16;
 export const BACKUP_IV_BYTES = 12;
 export const MIN_BACKUP_DECRYPT_PASSWORD_BYTES = 6;
-export const MIN_BACKUP_ENCRYPT_PASSWORD_BYTES = 6;
+export const MIN_BACKUP_ENCRYPT_PASSWORD_BYTES = 15;
 export const MAX_BACKUP_PASSWORD_BYTES = 1024;
 export const BACKUP_EXCLUDED_MODULES = [
   'users',

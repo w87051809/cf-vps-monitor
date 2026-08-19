@@ -21,7 +21,7 @@ export function setAdminSessionCookie(c: Context, token: string): void {
     path: '/',
     httpOnly: true,
     secure: isHttpsRequest(c),
-    sameSite: 'Lax',
+    sameSite: 'Strict',
     maxAge: ADMIN_SESSION_MAX_AGE_SECONDS,
   });
 }
@@ -60,7 +60,7 @@ export function ensureAdminCsrfCookie(c: Context): string {
     path: '/',
     httpOnly: false,
     secure: isHttpsRequest(c),
-    sameSite: 'Lax',
+    sameSite: 'Strict',
     maxAge: ADMIN_CSRF_MAX_AGE_SECONDS,
   });
   return token;

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 const source = readFileSync(new URL('./Notifications.tsx', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../../index.css', import.meta.url), 'utf8');
 
-assert.match(source, /<Select\.Item value="webhook">Webhook<\/Select\.Item>/);
+assert.match(source, /\{ value: 'webhook', label: 'Webhook'/);
 assert.match(source, /webhookOpen/);
 assert.match(source, /webhook_url/);
 assert.match(source, /webhook_format/);

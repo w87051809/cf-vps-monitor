@@ -1,11 +1,16 @@
 const PASSWORD_ALGORITHM = 'pbkdf2_sha256';
-const PBKDF2_ITERATIONS = 10000;
+const PBKDF2_ITERATIONS = 600_000;
 const MIN_ACCEPTED_PBKDF2_ITERATIONS = 10000;
 const SALT_BYTES = 16;
 const HASH_BYTES = 32;
 const LEGACY_SALT = 'cf-monitor-salt';
 const LEGACY_SHA256_HEX_RE = /^[a-f0-9]{64}$/i;
-const MIN_ADMIN_PASSWORD_LENGTH = 6;
+const MIN_ADMIN_PASSWORD_LENGTH = 15;
+const MAX_ADMIN_PASSWORD_LENGTH = 1024;
+const TIMING_PADDING_SALT = new Uint8Array([
+  0x63, 0x66, 0x2d, 0x6d, 0x6f, 0x6e, 0x69, 0x74,
+  0x6f, 0x72, 0x2d, 0x70, 0x61, 0x64, 0x2d, 0x31,
+]);
 
 type ParsedPasswordHash = {
   iterations: number;
@@ -120,6 +125,9 @@ export function validateAdminPasswordStrength(password: string, _username = ''):
   if (Array.from(password).length < MIN_ADMIN_PASSWORD_LENGTH) {
     return `密码至少需要 ${MIN_ADMIN_PASSWORD_LENGTH} 位`;
   }
+  if (password.length > MAX_ADMIN_PASSWORD_LENGTH) {
+    return `密码不能超过 ${MAX_ADMIN_PASSWORD_LENGTH} 位`;
+  }
 
   return null;
 }
@@ -128,6 +136,9 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   const parsed = parsePasswordHash(hash);
   if (parsed) {
     const computed = await derivePbkdf2(password, parsed.salt, parsed.iterations);
+    if (parsed.iterations < PBKDF2_ITERATIONS) {
+      await derivePbkdf2(password, TIMING_PADDING_SALT, PBKDF2_ITERATIONS - parsed.iterations);
+    }
     return constantTimeEqual(computed, parsed.hash);
   }
 
@@ -136,5 +147,6 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   }
 
   const computedLegacyHash = await hashLegacyPassword(password);
+  await derivePbkdf2(password, TIMING_PADDING_SALT, PBKDF2_ITERATIONS);
   return constantTimeStringEqual(computedLegacyHash, hash.toLowerCase());
 }

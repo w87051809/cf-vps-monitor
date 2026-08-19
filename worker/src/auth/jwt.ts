@@ -1,6 +1,7 @@
 import { sign, verify } from 'hono/jwt';
 
 const MIN_JWT_SECRET_BYTES = 32;
+const ADMIN_SESSION_TOKEN_KIND = 'cf-monitor-admin-session';
 
 export class AuthConfigurationError extends Error {
   constructor(message: string) {
@@ -41,6 +42,8 @@ export async function generateToken(
     userId,
     username,
     sessionVersion,
+    kind: ADMIN_SESSION_TOKEN_KIND,
+    jti: crypto.randomUUID(),
     iat: now,
     exp: now + 7 * 24 * 60 * 60,
   };
@@ -53,6 +56,9 @@ export async function verifyAdminToken(token: string, env: JwtEnv): Promise<Admi
 
   if (
     !payload ||
+    payload.kind !== ADMIN_SESSION_TOKEN_KIND ||
+    typeof payload.jti !== 'string' ||
+    !payload.jti ||
     typeof payload.userId !== 'string' ||
     typeof payload.username !== 'string' ||
     typeof payload.sessionVersion !== 'number' ||
