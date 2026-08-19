@@ -34,7 +34,7 @@ export function validateOfflineNotificationInput(
     errors.push('enable 必须是布尔值');
   }
 
-  const gracePeriod = integerField(input.grace_period ?? 180);
+  const gracePeriod = integerField(input.grace_period ?? 1800);
   if (!Number.isInteger(gracePeriod) || gracePeriod < 30 || gracePeriod > 86400) {
     errors.push('grace_period 必须是 30 到 86400 秒之间的整数');
   }

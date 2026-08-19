@@ -405,7 +405,7 @@ function validateOfflineNotifications(items: unknown[], errors: string[]): Offli
     return [{
       client: textField(item.client, `offline_notifications[${index}].client`, errors, { required: true, maxLength: 128 }) || '',
       enable: booleanField(item.enable),
-      grace_period: integerField(item.grace_period, `offline_notifications[${index}].grace_period`, errors, 180, 30, 86400),
+      grace_period: integerField(item.grace_period, `offline_notifications[${index}].grace_period`, errors, 1800, 30, 86400),
       last_notified: optionalTimeField(item.last_notified, `offline_notifications[${index}].last_notified`, errors),
     }];
   });

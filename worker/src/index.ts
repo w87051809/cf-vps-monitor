@@ -634,7 +634,7 @@ async function runOfflineCheck(context: ScheduledRunContext, now: Date): Promise
     const client = clientMap.get(item.client);
     if (!client) continue;
 
-    const gracePeriod = Math.max(30, Number(item.grace_period || 180));
+    const gracePeriod = Math.max(30, Number(item.grace_period || 1800));
     const event = evaluateOfflineNotificationEvent({
       now,
       clientCreatedAt: client.created_at,

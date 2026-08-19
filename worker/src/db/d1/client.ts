@@ -284,7 +284,7 @@ function offlineNotificationFromRow(row: Row): OfflineNotification {
   return {
     client: String(row.client || ''),
     enable: bool(row.enable),
-    grace_period: Number(row.grace_period || 180),
+    grace_period: Number(row.grace_period || 1800),
     last_notified: row.last_notified ? String(row.last_notified) : null,
   };
 }
@@ -702,7 +702,7 @@ export async function setSupabaseOfflineNotifications(env: D1ApiEnv, items: Offl
         enable = excluded.enable,
         grace_period = excluded.grace_period,
         last_notified = case when excluded.enable = 0 then null else offline_notifications.last_notified end
-    `, [item.client, dbBool(item.enable), Number(item.grace_period || 180)]);
+    `, [item.client, dbBool(item.enable), Number(item.grace_period || 1800)]);
     changed += 1;
   }
   return changed;
@@ -1703,7 +1703,7 @@ export async function restoreSupabaseBackupData(env: D1ApiEnv, backup: BackupDat
     for (const item of backup.offline_notifications) {
       if (!item.client) continue;
       await run(env, 'insert into offline_notifications (client, enable, grace_period, last_notified) values (?, ?, ?, ?)', [
-        item.client, dbBool(item.enable), Number(item.grace_period || 180), item.last_notified || null,
+        item.client, dbBool(item.enable), Number(item.grace_period || 1800), item.last_notified || null,
       ]);
     }
   }

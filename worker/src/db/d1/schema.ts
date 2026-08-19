@@ -248,7 +248,7 @@ CREATE INDEX IF NOT EXISTS idx_website_checks_monitor_source_time ON website_che
 CREATE TABLE IF NOT EXISTS offline_notifications (
   client TEXT PRIMARY KEY,
   enable INTEGER NOT NULL DEFAULT 0,
-  grace_period INTEGER NOT NULL DEFAULT 180,
+  grace_period INTEGER NOT NULL DEFAULT 1800,
   last_notified TEXT,
   FOREIGN KEY (client) REFERENCES clients(uuid) ON DELETE CASCADE
 );

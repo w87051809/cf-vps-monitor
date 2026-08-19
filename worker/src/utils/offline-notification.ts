@@ -41,7 +41,7 @@ export function evaluateOfflineNotificationEvent(args: {
   gracePeriodSec: number;
   notifyNeverReported: boolean;
 }): OfflineNotificationEvent | null {
-  const graceMs = Math.max(30, Number(args.gracePeriodSec || 180)) * 1000;
+  const graceMs = Math.max(30, Number(args.gracePeriodSec || 1800)) * 1000;
   const nowMs = args.now.getTime();
   const lastTime = resolveLatestReportTime(args.lastTime, args.liveLastReportTime);
   const neverReported = !lastTime;

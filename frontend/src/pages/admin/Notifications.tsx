@@ -54,6 +54,8 @@ const emptyTabState: Record<NotificationTab, boolean> = {
   expiry: false,
   load: false,
 };
+
+const DEFAULT_OFFLINE_GRACE_PERIOD = 1800;
 const notificationChannelOptions = [
   { value: 'telegram', label: 'Telegram', color: 'green' },
   { value: 'email', label: 'SMTP 邮件', color: 'blue' },
@@ -135,10 +137,10 @@ export default function AdminNotifications() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
-  const [batchForm, setBatchForm] = useState({ enable: true, grace_period: 180 });
+  const [batchForm, setBatchForm] = useState({ enable: true, grace_period: DEFAULT_OFFLINE_GRACE_PERIOD });
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingOffline, setEditingOffline] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ enable: false, grace_period: 180 });
+  const [editForm, setEditForm] = useState({ enable: false, grace_period: DEFAULT_OFFLINE_GRACE_PERIOD });
   const [expiryBatchDialogOpen, setExpiryBatchDialogOpen] = useState(false);
   const [expiryBatchForm, setExpiryBatchForm] = useState({ enable: true, advance_days: 7 });
   const [expiryEditDialogOpen, setExpiryEditDialogOpen] = useState(false);
@@ -301,7 +303,7 @@ export default function AdminNotifications() {
   const toggleOffline = async (clientUuid: string, enable: boolean) => {
     const result = await apiFetch('/admin/notification/offline/edit', {
       method: 'POST',
-      body: JSON.stringify({ client: clientUuid, enable, grace_period: 180 }),
+      body: JSON.stringify({ client: clientUuid, enable, grace_period: DEFAULT_OFFLINE_GRACE_PERIOD }),
     });
     if (result.success) {
       toast.success(enable ? '已开启离线通知' : '已关闭离线通知');
@@ -317,7 +319,7 @@ export default function AdminNotifications() {
     setEditingOffline(clientUuid);
     setEditForm({
       enable: existing?.enable || false,
-      grace_period: existing?.grace_period || 180,
+      grace_period: existing?.grace_period || DEFAULT_OFFLINE_GRACE_PERIOD,
     });
     setEditDialogOpen(true);
   };
@@ -347,7 +349,7 @@ export default function AdminNotifications() {
       toast.error('请先选择服务器');
       return;
     }
-    setBatchForm({ enable: true, grace_period: 180 });
+    setBatchForm({ enable: true, grace_period: DEFAULT_OFFLINE_GRACE_PERIOD });
     setBatchDialogOpen(true);
   };
 
@@ -1260,7 +1262,7 @@ export default function AdminNotifications() {
                     const notification = notificationMap.get(client.uuid);
                     const displayIp = clientDisplayIp(client);
                     const enabled = notification?.enable || false;
-                    const gracePeriod = notification?.grace_period || 180;
+                    const gracePeriod = notification?.grace_period || DEFAULT_OFFLINE_GRACE_PERIOD;
                     const lastNotified = notification?.last_notified;
                     const lastNotifiedText = lastNotified
                       ? new Date(lastNotified).getFullYear() < 2000
