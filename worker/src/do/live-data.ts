@@ -18,6 +18,7 @@ import {
 } from '../settings/schema';
 import { bestEffortRecordHealthEvent, errorDetail } from '../utils/observability';
 import { isPublicIpAddress } from '../utils/request-ip';
+import { toPublicClient, toPublicLiveRecord } from '../utils/public-client';
 import { unwrapMonitorReportEnvelope } from '../utils/report-envelope';
 import { checkWebsiteMonitorHttp } from '../utils/website-monitor';
 
@@ -565,12 +566,17 @@ export class LiveDataDO {
     const now = Date.now();
     const onlineClients = Array.from(this.clients.values())
       .filter(c => (includeHidden || !c.hidden) && (!c.expiresAt || c.expiresAt > now))
-      .map(c => ({
-        ...(c.lastReport || {}),
-        uuid: c.uuid,
-        name: c.name,
-        lastReportTime: c.lastReportTime,
-      }));
+      .map(c => {
+        const report = includeHidden
+          ? { ...(c.lastReport || {}) }
+          : toPublicLiveRecord(c.lastReport || {});
+        return {
+          ...report,
+          uuid: c.uuid,
+          name: c.name,
+          lastReportTime: c.lastReportTime,
+        };
+      });
     const liveData = onlineClients.reduce<Record<string, LiveSnapshotClient>>((acc, client) => {
       acc[client.uuid] = client;
       return acc;
@@ -1041,7 +1047,8 @@ export class LiveDataDO {
   }
 
   private broadcastToViewers(message: JsonObject, audience: 'all' | 'public' | 'admin' = 'all') {
-    let payload = '';
+    let publicPayload = '';
+    let adminPayload = '';
     for (const [id, session] of this.sessions) {
       if (this.sessionRoles.get(id) !== 'viewer' || session.readyState !== WebSocket.READY_STATE_OPEN) {
         continue;
@@ -1050,12 +1057,41 @@ export class LiveDataDO {
       if (audience === 'admin' && !includeHidden) continue;
       if (audience === 'public' && includeHidden) continue;
       try {
-        payload ||= JSON.stringify(message);
-        session.send(payload);
+        if (includeHidden) {
+          adminPayload ||= JSON.stringify(message);
+          session.send(adminPayload);
+        } else {
+          publicPayload ||= JSON.stringify(this.publicViewerMessage(message));
+          session.send(publicPayload);
+        }
       } catch {
         // Close/error handlers clean up broken viewer sockets.
       }
     }
+  }
+
+  private publicViewerMessage(message: JsonObject): JsonObject {
+    if (message.type === 'update' && isObjectPayload(message.data)) {
+      return {
+        ...message,
+        data: toPublicLiveRecord(message.data),
+      };
+    }
+    if (message.type === 'metadata_changed' && isObjectPayload(message.clients)) {
+      const clients = message.clients;
+      return {
+        ...message,
+        clients: {
+          ...clients,
+          ...(Array.isArray(clients.upsert) ? {
+            upsert: clients.upsert
+              .filter(isObjectPayload)
+              .map(client => this.publicClientMetadata(client)),
+          } : {}),
+        },
+      };
+    }
+    return message;
   }
 
   private broadcastMetadataChanged(detail: JsonObject = {}) {
@@ -1335,10 +1371,9 @@ export class LiveDataDO {
 
   private publicClientMetadata(client: JsonObject): JsonObject {
     const safe = this.sanitizeAdminClientSnapshotItem(client);
-    const broadcastClient: JsonObject = safe ? { ...safe } : {};
-    delete broadcastClient.ipv4;
-    delete broadcastClient.ipv6;
-    return broadcastClient;
+    return safe
+      ? toPublicClient(safe as Parameters<typeof toPublicClient>[0]) as unknown as JsonObject
+      : {};
   }
 
   private async readAdminClientsSnapshot(): Promise<AdminClientsSnapshot | null> {
