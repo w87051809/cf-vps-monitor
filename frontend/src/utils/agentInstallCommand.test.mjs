@@ -53,9 +53,13 @@ assert.equal(
 );
 
 const windowsCommand = buildAgentInstallCommand({ platform: 'windows', ...base });
-assert.match(windowsCommand, /\$ErrorActionPreference='Stop'/);
+assert.doesNotMatch(windowsCommand, /\$(?:ErrorActionPreference|ProgressPreference)/);
 assert.match(windowsCommand, /Invoke-WebRequest 'https:\/\/panel\.example\/agent\/install-windows\.ps1'/);
 assert.match(windowsCommand, /-ErrorAction Stop; & '\.\\install-windows\.ps1'/);
+
+const windowsUninstallCommand = buildAgentUninstallAllCommand({ platform: 'windows' });
+assert.doesNotMatch(windowsUninstallCommand, /\$(?:ErrorActionPreference|ProgressPreference)/);
+assert.match(windowsUninstallCommand, /-ErrorAction Stop; & '\.\\install-windows\.ps1' -UninstallAll -Yes/);
 
 assert.equal(
   buildAgentUninstallAllCommand({ platform: 'unix' }),

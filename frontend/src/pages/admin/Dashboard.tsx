@@ -699,6 +699,10 @@ function GenerateCommandDialog({ client, open, onOpenChange }: { client: Command
           </div>
         )}
 
+        {platform === 'windows' && (
+          <Text size="1" color="gray" mt="2">PowerShell 安装失败时，请打开 CMD（命令提示符）运行下方命令。</Text>
+        )}
+
         <Text size="2" weight="bold" mt="2">命令</Text>
         <TextArea
           className="admin-command-code"

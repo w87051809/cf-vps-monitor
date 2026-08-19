@@ -159,7 +159,7 @@ function psQuote(value: string) {
 }
 
 function psDownloadScriptCommand(url: string, output: string) {
-  return `$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest ${psQuote(url)} -UseBasicParsing -TimeoutSec 90 -OutFile ${psQuote(output)} -ErrorAction Stop`;
+  return `[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest ${psQuote(url)} -UseBasicParsing -TimeoutSec 90 -OutFile ${psQuote(output)} -ErrorAction Stop`;
 }
 
 function normalizeTrafficResetDay(value: string) {
