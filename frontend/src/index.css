@@ -2317,6 +2317,28 @@ html[data-monitor-theme='monitor'] .node-filter-panel {
   scrollbar-gutter: stable;
 }
 
+.windows-install-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--red-8);
+  border-radius: 10px;
+  background: var(--red-3);
+}
+
+.windows-install-notice-icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--red-10);
+}
+
+.windows-install-notice-text {
+  display: block;
+  margin-top: 4px;
+}
+
 .admin-command-code {
   width: 100%;
   min-height: 132px;

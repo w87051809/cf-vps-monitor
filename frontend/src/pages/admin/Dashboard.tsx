@@ -21,7 +21,7 @@ import {
 } from '@radix-ui/themes';
 import {
   Plus, Pencil, Trash2, Copy, Search,
-  GripVertical, RefreshCw, Download, EyeOff, Server, Wifi, Layers, KeyRound
+  GripVertical, RefreshCw, Download, EyeOff, Server, Wifi, Layers, KeyRound, TriangleAlert
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Loading from '../../components/Loading';
@@ -646,6 +646,21 @@ function GenerateCommandDialog({ client, open, onOpenChange }: { client: Command
           <SegmentedControl.Item value="windows">Windows</SegmentedControl.Item>
         </SegmentedControl.Root>
 
+        {platform === 'windows' && (
+          <div className="windows-install-notice" role="note">
+            <TriangleAlert size={20} className="windows-install-notice-icon" aria-hidden="true" />
+            <div>
+              <Flex align="center" gap="2">
+                <Badge color="red" variant="solid">重要提示</Badge>
+                <Text size="2" weight="bold">Windows 安装</Text>
+              </Flex>
+              <Text className="windows-install-notice-text" size="2">
+                PowerShell 安装失败时，请改用 <strong>CMD（命令提示符）</strong> 执行安装命令。
+              </Text>
+            </div>
+          </div>
+        )}
+
         <Flex className="admin-command-options-scroll" direction="column" gap="3">
           <FieldInput label="连接地址" value={serverUrl} onChange={setServerUrl} placeholder={window.location.origin} />
           <Text size="2" weight="bold">安装选项</Text>
@@ -697,10 +712,6 @@ function GenerateCommandDialog({ client, open, onOpenChange }: { client: Command
             <pre className="serv00-first-use-command"><code>{SERV00_FIRST_USE_COMMAND}</code></pre>
             <Text size="1" color="gray">执行后会退出 SSH；重新连接服务器，再执行下方正式安装命令。</Text>
           </div>
-        )}
-
-        {platform === 'windows' && (
-          <Text size="1" color="gray" mt="2">PowerShell 安装失败时，请打开 CMD（命令提示符）运行下方命令。</Text>
         )}
 
         <Text size="2" weight="bold" mt="2">命令</Text>
