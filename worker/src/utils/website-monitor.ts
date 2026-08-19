@@ -80,6 +80,7 @@ const IPV4_BLOCKS = [
 
 const REACHABLE_CHALLENGE_STATUSES = new Set([401, 403, 405, 412, 429]);
 const WEBSITE_CHECK_DUE_TOLERANCE_SECONDS = 30;
+export const WEBSITE_ALERT_MIN_GRACE_SECONDS = 30 * 60;
 const WEBSITE_PROBE_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (compatible; CF-VPS-Monitor/2.0; +https://cf-vps-monitor.local)',
   Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -208,7 +209,11 @@ export function validateWebsiteMonitorInput(input: Record<string, unknown>): Web
   const expected_status_max = integerInRange(input.expected_status_max ?? 399, 100, 599);
   const interval_sec = integerInRange(input.interval_sec ?? 120, 60, 86400);
   const timeout_sec = integerInRange(input.timeout_sec ?? 10, 1, 30);
-  const grace_period_sec = integerInRange(input.grace_period_sec ?? 180, 30, 86400);
+  const grace_period_sec = integerInRange(
+    input.grace_period_sec ?? WEBSITE_ALERT_MIN_GRACE_SECONDS,
+    WEBSITE_ALERT_MIN_GRACE_SECONDS,
+    86400,
+  );
   const agent_probe_mode: WebsiteAgentProbeMode =
     input.agent_probe_mode === 'selected' || input.agent_probe_mode === 'country_auto' ? input.agent_probe_mode : 'off';
   const agent_probe_limit = integerInRange(input.agent_probe_limit ?? 3, 1, 10);
@@ -440,7 +445,8 @@ export function isWebsiteCheckDue(monitor: MaybeDueMonitor, now = new Date()): b
 
 export function shouldNotifyWebsiteDown(monitor: MaybeAlertMonitor, now = new Date()): boolean {
   if (monitor.status !== 'down' || monitor.last_notified_at || !monitor.down_since) return false;
-  return now.getTime() - new Date(monitor.down_since).getTime() >= monitor.grace_period_sec * 1000;
+  const graceSeconds = Math.max(WEBSITE_ALERT_MIN_GRACE_SECONDS, monitor.grace_period_sec);
+  return now.getTime() - new Date(monitor.down_since).getTime() >= graceSeconds * 1000;
 }
 
 export function shouldNotifyWebsiteRecovery(monitor: { status: string; last_notified_at: string | null }): boolean {

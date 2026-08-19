@@ -87,6 +87,8 @@ interface ClientLite {
   region?: string;
 }
 
+const WEBSITE_ALERT_MIN_GRACE_SECONDS = 30 * 60;
+
 const emptyForm = {
   name: '',
   url: 'https://',
@@ -95,7 +97,7 @@ const emptyForm = {
   expected_status_max: DEFAULT_EXPECTED_STATUS_MAX,
   interval_sec: 120,
   timeout_sec: 10,
-  grace_period_sec: 180,
+  grace_period_sec: WEBSITE_ALERT_MIN_GRACE_SECONDS,
   enabled: true,
   hidden: false,
   agent_probe_mode: 'country_auto' as WebsiteAgentProbeMode,
@@ -464,7 +466,7 @@ export default function AdminWebsites() {
       expected_status_max: monitor.expected_status_max,
       interval_sec: monitor.interval_sec,
       timeout_sec: monitor.timeout_sec,
-      grace_period_sec: monitor.grace_period_sec,
+      grace_period_sec: Math.max(WEBSITE_ALERT_MIN_GRACE_SECONDS, monitor.grace_period_sec),
       enabled: monitor.enabled,
       hidden: monitor.hidden,
       agent_probe_mode: monitor.agent_probe_mode || 'off',
@@ -486,6 +488,10 @@ export default function AdminWebsites() {
     }
     if (numericValues.some((value) => !Number.isFinite(value) || value <= 0)) {
       toast.error('检测参数必须大于 0');
+      return;
+    }
+    if (form.grace_period_sec < WEBSITE_ALERT_MIN_GRACE_SECONDS) {
+      toast.error('网站告警等待时间不能少于 30 分钟');
       return;
     }
     if (form.method !== 'TCP' && form.expected_status_min > form.expected_status_max) {
@@ -833,7 +839,7 @@ export default function AdminWebsites() {
             <Grid className="admin-website-compact-grid" columns={{ initial: '1', sm: '3' }} gap="3">
               <label><Text size="2" weight="bold">检测间隔(秒)</Text><TextField.Root type="number" value={String(form.interval_sec)} onChange={(event) => update('interval_sec', Number(event.target.value))} /></label>
               <label><Text size="2" weight="bold">超时(秒)</Text><TextField.Root type="number" value={String(form.timeout_sec)} onChange={(event) => update('timeout_sec', Number(event.target.value))} /></label>
-              <label><Text size="2" weight="bold">宽限期(秒)</Text><TextField.Root type="number" value={String(form.grace_period_sec)} onChange={(event) => update('grace_period_sec', Number(event.target.value))} /></label>
+              <label><Text size="2" weight="bold">告警等待(分钟，最低30)</Text><TextField.Root type="number" min="30" step="1" value={String(Math.max(30, Math.ceil(form.grace_period_sec / 60)))} onChange={(event) => update('grace_period_sec', Number(event.target.value) * 60)} /></label>
               {form.method !== 'TCP' && (
                 <>
                   <label><Text size="2" weight="bold">最小状态码</Text><TextField.Root type="number" value={String(form.expected_status_min)} onChange={(event) => update('expected_status_min', Number(event.target.value))} /></label>

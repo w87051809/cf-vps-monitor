@@ -124,6 +124,27 @@ export function buildLoadNotification(input: {
   });
 }
 
+const WEBSITE_STATUS_LABELS: Record<string, string> = {
+  timeout: '请求超时',
+  dns_error: '域名解析失败',
+  tls_error: '安全证书错误',
+  network_error: '网络连接失败',
+  unsafe_redirect: '重定向地址不安全',
+  unsafe_host: '目标地址不安全',
+  up: '正常',
+  down: '异常',
+  pending: '等待检测',
+  paused: '已暂停',
+  unknown: '未知异常',
+};
+
+export function formatWebsiteStatusLabel(value: string): string {
+  const normalized = String(value || '').trim().toLowerCase();
+  const statusCode = normalized.match(/^http(?:[_\s-]+)(\d{3})$/i)?.[1];
+  if (statusCode) return `网页状态码 ${statusCode}`;
+  return WEBSITE_STATUS_LABELS[normalized] || '检测异常';
+}
+
 export function buildWebsiteAlertNotification(input: {
   name: string;
   url: string;
@@ -135,7 +156,7 @@ export function buildWebsiteAlertNotification(input: {
     emoji: '🌐',
     event: '网站告警',
     clients: input.name,
-    message: `${input.url}；状态 ${input.lastStatus}；持续 ${input.downMinutes} 分钟`,
+    message: `${input.url}；状态 ${formatWebsiteStatusLabel(input.lastStatus)}；持续 ${input.downMinutes} 分钟`,
     time: input.checkedAt,
   });
 }
@@ -152,7 +173,7 @@ export function buildWebsiteRecoveryNotification(input: {
     emoji: '🟢',
     event: '网站恢复',
     clients: input.name,
-    message: `${input.url}；HTTP ${input.statusCode ?? 'unknown'}；延迟 ${input.latencyMs ?? 0}ms；故障时长 ${input.downMinutes} 分钟`,
+    message: `${input.url}；网页状态码 ${input.statusCode ?? '未知'}；延迟 ${input.latencyMs ?? 0} 毫秒；故障时长 ${input.downMinutes} 分钟`,
     time: input.eventTime,
   });
 }

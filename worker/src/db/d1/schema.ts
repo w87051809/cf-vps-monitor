@@ -199,7 +199,7 @@ CREATE TABLE IF NOT EXISTS website_monitors (
   expected_status_max INTEGER NOT NULL DEFAULT 399,
   interval_sec INTEGER NOT NULL DEFAULT 120,
   timeout_sec INTEGER NOT NULL DEFAULT 10,
-  grace_period_sec INTEGER NOT NULL DEFAULT 180,
+  grace_period_sec INTEGER NOT NULL DEFAULT 1800,
   enabled INTEGER NOT NULL DEFAULT 1,
   hidden INTEGER NOT NULL DEFAULT 0,
   agent_probe_mode TEXT NOT NULL DEFAULT 'country_auto',
