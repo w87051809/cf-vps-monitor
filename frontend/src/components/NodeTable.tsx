@@ -2,7 +2,6 @@
  * NodeTable - sortable public node status table.
  */
 import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Badge, Box, Flex, Table, Text } from '@radix-ui/themes';
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react';
 import UsageBar from './UsageBar';
@@ -140,18 +139,13 @@ export default function NodeTable({ nodes, liveData }: NodeTableProps) {
             return (
               <Table.Row key={node.uuid}>
                   <Table.Cell>
-                    <Link
-                      to={`/instance/${node.uuid}`}
-                      style={{ textDecoration: 'none', color: 'inherit' }}
-                    >
-                      <Flex className="node-table-name-cell" align="center" gap="2">
-                        <Flag region={node.region} size={16} />
-                        <Box style={{ minWidth: 0 }}>
-                          <Text weight="bold" size="2" truncate>{node.name}</Text>
-                          {node.group && <Text size="1" color="gray" truncate>{node.group}</Text>}
-                        </Box>
-                      </Flex>
-                    </Link>
+                    <Flex className="node-table-name-cell" align="center" gap="2">
+                      <Flag region={node.region} size={16} />
+                      <Box style={{ minWidth: 0 }}>
+                        <Text weight="bold" size="2" truncate>{node.name}</Text>
+                        {node.group && <Text size="1" color="gray" truncate>{node.group}</Text>}
+                      </Box>
+                    </Flex>
                   </Table.Cell>
                   <Table.Cell>
                     <Flex align="center" gap="2" style={{ minWidth: 0 }}>

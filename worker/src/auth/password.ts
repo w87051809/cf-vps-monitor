@@ -1,5 +1,7 @@
 const PASSWORD_ALGORITHM = 'pbkdf2_sha256';
-const PBKDF2_ITERATIONS = 600_000;
+// Cloudflare Workers rejects a single PBKDF2 operation above 100,000 iterations.
+const PBKDF2_ITERATIONS = 100_000;
+const MAX_SUPPORTED_PBKDF2_ITERATIONS = 100_000;
 const MIN_ACCEPTED_PBKDF2_ITERATIONS = 10000;
 const SALT_BYTES = 16;
 const HASH_BYTES = 32;
@@ -99,6 +101,7 @@ function parsePasswordHash(hash: string): ParsedPasswordHash | null {
   if (
     !Number.isInteger(iterations) ||
     iterations < MIN_ACCEPTED_PBKDF2_ITERATIONS ||
+    iterations > MAX_SUPPORTED_PBKDF2_ITERATIONS ||
     !salt ||
     salt.length < SALT_BYTES ||
     !storedHash ||

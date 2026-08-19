@@ -13,5 +13,5 @@ test('does not expose detailed authentication timing headers', async () => {
 
 test('uses the current password work factor for unknown-user login padding', async () => {
   const source = await readFile(new URL('./public.ts', import.meta.url), 'utf8');
-  assert.match(source, /DUMMY_ADMIN_PASSWORD_HASH = 'pbkdf2_sha256\$600000\$/);
+  assert.match(source, /DUMMY_ADMIN_PASSWORD_HASH = 'pbkdf2_sha256\$100000\$/);
 });

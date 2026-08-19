@@ -1,5 +1,4 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { Badge, Box, Card, Flex, IconButton, Separator, Text, Tooltip } from '@radix-ui/themes';
 import { Activity, ArrowDown, ArrowUp, BarChart3, TrendingUp } from 'lucide-react';
 import Flag from './Flag';
@@ -259,20 +258,13 @@ export default function NodeCard({ client, live, online, includeHidden = false }
     }
   })();
   const trafficPct = client.traffic_limit > 0 ? Math.min(100, (trafficUsed / client.traffic_limit) * 100) : undefined;
-  const handleCardLinkClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
-    const target = event.target as HTMLElement | null;
-    if (target?.closest('[data-node-card-action="true"]')) {
-      event.preventDefault();
-    }
-  };
-
   return (
     <Card
       className="node-card"
       style={{ width: '100%', margin: '0 auto', opacity: online ? 1 : 0.75 }}
       id={client.uuid}
     >
-      <Link className="node-card-link" to={`/instance/${client.uuid}`} onClick={handleCardLinkClick} style={{ textDecoration: 'none', color: 'inherit' }}>
+      <Box className="node-card-link">
         <Flex className="node-card-body" direction="column" gap="2">
           <Flex className="node-card-header" justify="between" align="start" my={isMobile ? '-1' : '0'} data-has-message={d.message ? 'true' : undefined}>
             <Flex justify="start" align="center" style={{ flex: 1, minWidth: 0 }}>
@@ -383,7 +375,7 @@ export default function NodeCard({ client, live, online, includeHidden = false }
             </div>
           </Flex>
         </Flex>
-      </Link>
+      </Box>
     </Card>
   );
 }

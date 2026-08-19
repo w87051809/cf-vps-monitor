@@ -17,7 +17,8 @@ export const BACKUP_SCOPE = 'configuration';
 export const BACKUP_SENSITIVE_WARNING = 'This backup may contain client tokens, AutoDiscovery Key, Telegram credentials, and other configuration secrets. Store it securely.';
 export const BACKUP_ENCRYPTION_ALGORITHM = 'AES-GCM';
 export const BACKUP_KDF = 'PBKDF2-SHA256';
-export const BACKUP_KDF_ITERATIONS = 600_000;
+// Keep this at Cloudflare Workers' maximum supported PBKDF2 work factor.
+export const BACKUP_KDF_ITERATIONS = 100_000;
 export const BACKUP_SALT_BYTES = 16;
 export const BACKUP_IV_BYTES = 12;
 export const MIN_BACKUP_DECRYPT_PASSWORD_BYTES = 6;
@@ -597,7 +598,7 @@ export async function decryptBackup(input: unknown, password: string): Promise<B
     return { ok: false, error: '加密算法不受支持' };
   }
   const iterations = Number(encryption.iterations);
-  if (!Number.isInteger(iterations) || iterations < 100_000 || iterations > 1_000_000) {
+  if (!Number.isInteger(iterations) || iterations !== BACKUP_KDF_ITERATIONS) {
     return { ok: false, error: 'KDF 参数无效' };
   }
   const salt = typeof encryption.salt === 'string' ? base64ToBytes(encryption.salt) : null;

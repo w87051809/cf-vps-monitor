@@ -11,7 +11,6 @@ import { PUBLIC_DATA_READY_EVENT } from './utils/publicDataEvents';
 
 const loadLayout = () => import('./pages/Layout');
 const loadIndex = () => import('./pages/Index');
-const loadInstance = () => import('./pages/Instance');
 const loadLogin = () => import('./pages/Login');
 const loadDbInit = () => import('./pages/DbInit');
 const loadNotFound = () => import('./pages/NotFound');
@@ -23,7 +22,6 @@ const loadSettingsGeneral = () => import('./pages/admin/SettingsGeneral');
 
 const Layout = lazy(loadLayout);
 const Index = lazy(loadIndex);
-const Instance = lazy(loadInstance);
 const Login = lazy(loadLogin);
 const DbInit = lazy(loadDbInit);
 const NotFound = lazy(loadNotFound);
@@ -46,7 +44,6 @@ function preloadRouteChunks() {
   // ponytail: preload after first public data; per-route hover prefetch if this grows.
   void loadLayout();
   void loadIndex();
-  void loadInstance();
   void loadLogin();
   void loadDbInit();
   void loadNotFound();
@@ -125,7 +122,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Layout />}>
                   <Route index element={<LiveDataRoute><PublicIndexRoute /></LiveDataRoute>} />
-                  <Route path="instance/:uuid" element={<LiveDataRoute><Instance /></LiveDataRoute>} />
+                  <Route path="instance/:uuid" element={<Navigate to="/" replace />} />
                 </Route>
 
                 <Route path="/87051809/login" element={<Login />} />

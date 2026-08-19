@@ -28,12 +28,32 @@ test('encrypts new backups with the current work factor and decrypts them', asyn
   assert.equal(encrypted.ok, true);
   if (!encrypted.ok) return;
   assert.equal(encrypted.encryptedBackup.encryption.iterations, BACKUP_KDF_ITERATIONS);
-  assert.equal(BACKUP_KDF_ITERATIONS, 600_000);
+  assert.equal(BACKUP_KDF_ITERATIONS, 100_000);
 
   const decrypted = await decryptBackup(encrypted.encryptedBackup, password);
   assert.equal(decrypted.ok, true);
   if (decrypted.ok) {
     assert.equal(decrypted.backup.version, BACKUP_VERSION);
     assert.deepEqual(decrypted.backup.settings, {});
+  }
+});
+
+test('rejects backup work factors unsupported by Cloudflare Workers', async () => {
+  const password = '123456789012345';
+  const encrypted = await encryptBackup(backup, password);
+  assert.equal(encrypted.ok, true);
+  if (!encrypted.ok) return;
+
+  const unsupported = {
+    ...encrypted.encryptedBackup,
+    encryption: {
+      ...encrypted.encryptedBackup.encryption,
+      iterations: 600_000,
+    },
+  };
+  const decrypted = await decryptBackup(unsupported, password);
+  assert.equal(decrypted.ok, false);
+  if (!decrypted.ok) {
+    assert.match(decrypted.error, /KDF/);
   }
 });
