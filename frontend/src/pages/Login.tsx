@@ -36,7 +36,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
-  const redirectTo = from?.startsWith('/admin') ? from : '/admin';
+  const redirectTo = from?.startsWith('/87051809') ? from : '/87051809';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

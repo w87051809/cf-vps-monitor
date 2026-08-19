@@ -30,7 +30,7 @@ export default function AdminLayout() {
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
-      navigate("/login", {
+      navigate("/87051809/login", {
         replace: true,
         state: { from: `${location.pathname}${location.search}` },
       });
@@ -232,7 +232,7 @@ export default function AdminLayout() {
             <Button
               variant="ghost"
               size="1"
-              onClick={() => navigate("/admin/about")}
+              onClick={() => navigate("/87051809/about")}
               style={{ maxWidth: "100%", padding: "2px 6px" }}
             >
               <Text size="1" color={hasUpdate ? "orange" : "gray"}>

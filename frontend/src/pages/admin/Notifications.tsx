@@ -158,7 +158,7 @@ export default function AdminNotifications() {
     const nextTab = toNotificationTab(value);
     setActiveTab(nextTab);
     setSelectedClients([]);
-    navigate(`/admin/notifications/${nextTab}`);
+    navigate(`/87051809/notifications/${nextTab}`);
   };
 
   const setTabBusy = useCallback((tab: NotificationTab, busy: boolean) => {

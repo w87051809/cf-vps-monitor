@@ -26,7 +26,7 @@ export default function NotFound() {
         <Button onClick={() => navigate('/')}>
           <Home size={16} /> 返回首页
         </Button>
-        <Button variant="soft" onClick={() => navigate('/admin')}>
+        <Button variant="soft" onClick={() => navigate('/87051809')}>
           管理后台
         </Button>
       </Flex>

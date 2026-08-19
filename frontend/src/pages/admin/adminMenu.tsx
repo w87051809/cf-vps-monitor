@@ -26,81 +26,81 @@ export interface AdminMenuItem {
 }
 
 export const adminMenuItems: AdminMenuItem[] = [
-  { path: '/admin', label: '服务器', icon: <Server size={18} /> },
-  { path: '/admin/websites', label: '网站', icon: <Globe2 size={18} /> },
+  { path: '/87051809', label: '服务器', icon: <Server size={18} /> },
+  { path: '/87051809/websites', label: '网站', icon: <Globe2 size={18} /> },
   {
-    path: '/admin/settings',
+    path: '/87051809/settings',
     label: '系统设置',
     icon: <Bolt size={18} />,
     children: [
-      { path: '/admin/settings', label: '站点设置', icon: <Globe size={16} /> },
-      { path: '/admin/settings/general', label: '通用设置', icon: <Ellipsis size={16} /> },
+      { path: '/87051809/settings', label: '站点设置', icon: <Globe size={16} /> },
+      { path: '/87051809/settings/general', label: '通用设置', icon: <Ellipsis size={16} /> },
     ],
   },
   {
-    path: '/admin/notifications',
+    path: '/87051809/notifications',
     label: '通知管理',
     icon: <Bell size={18} />,
     children: [
-      { path: '/admin/notifications/settings', label: '通知设置', icon: <MessageCircleMore size={16} /> },
-      { path: '/admin/notifications/offline', label: '离线通知', icon: <Unplug size={16} /> },
-      { path: '/admin/notifications/expiry', label: '到期通知', icon: <CalendarClock size={16} /> },
-      { path: '/admin/notifications/load', label: '负载通知', icon: <TrendingUp size={16} /> },
+      { path: '/87051809/notifications/settings', label: '通知设置', icon: <MessageCircleMore size={16} /> },
+      { path: '/87051809/notifications/offline', label: '离线通知', icon: <Unplug size={16} /> },
+      { path: '/87051809/notifications/expiry', label: '到期通知', icon: <CalendarClock size={16} /> },
+      { path: '/87051809/notifications/load', label: '负载通知', icon: <TrendingUp size={16} /> },
     ],
   },
-  { path: '/admin/ping', label: '延迟监测', icon: <Activity size={18} /> },
-  { path: '/admin/themes', label: '主题管理', icon: <Palette size={18} /> },
-  { path: '/admin/logs', label: '审计日志', icon: <ScrollText size={18} /> },
-  { path: '/admin/account', label: '账户', icon: <User size={18} /> },
-  { path: '/admin/about', label: '关于', icon: <AtSign size={18} /> },
+  { path: '/87051809/ping', label: '延迟监测', icon: <Activity size={18} /> },
+  { path: '/87051809/themes', label: '主题管理', icon: <Palette size={18} /> },
+  { path: '/87051809/logs', label: '审计日志', icon: <ScrollText size={18} /> },
+  { path: '/87051809/account', label: '账户', icon: <User size={18} /> },
+  { path: '/87051809/about', label: '关于', icon: <AtSign size={18} /> },
 ];
 
 export function isAdminMenuPathActive(itemPath: string, currentPath: string) {
-  if (itemPath === '/admin/settings') return currentPath.startsWith('/admin/settings');
-  if (itemPath === '/admin/notifications') {
-    return currentPath.startsWith('/admin/notifications') ||
-      currentPath.startsWith('/admin/notification');
+  if (itemPath === '/87051809/settings') return currentPath.startsWith('/87051809/settings');
+  if (itemPath === '/87051809/notifications') {
+    return currentPath.startsWith('/87051809/notifications') ||
+      currentPath.startsWith('/87051809/notification');
   }
-  if (itemPath === '/admin/themes') return currentPath.startsWith('/admin/themes');
-  if (itemPath === '/admin') return currentPath === '/admin' || currentPath.startsWith('/admin/clients');
+  if (itemPath === '/87051809/themes') return currentPath.startsWith('/87051809/themes');
+  if (itemPath === '/87051809') return currentPath === '/87051809' || currentPath.startsWith('/87051809/clients');
   return currentPath === itemPath;
 }
 
 export function isAdminChildPathActive(childPath: string, currentPath: string) {
-  if (childPath === '/admin/settings') {
-    return currentPath === childPath || currentPath === '/admin/settings/site';
+  if (childPath === '/87051809/settings') {
+    return currentPath === childPath || currentPath === '/87051809/settings/site';
   }
 
-  if (childPath === '/admin/settings/general') {
+  if (childPath === '/87051809/settings/general') {
     return currentPath === childPath || currentPath.startsWith(`${childPath}/`);
   }
 
-  if (childPath === '/admin/notifications/settings') {
+  if (childPath === '/87051809/notifications/settings') {
     return currentPath === childPath ||
       currentPath.startsWith(`${childPath}/`) ||
-      currentPath === '/admin/settings/notification' ||
-      currentPath.startsWith('/admin/settings/notification/');
+      currentPath === '/87051809/settings/notification' ||
+      currentPath.startsWith('/87051809/settings/notification/');
   }
 
-  if (childPath === '/admin/notifications/offline') {
+  if (childPath === '/87051809/notifications/offline') {
     return currentPath === childPath ||
       currentPath.startsWith(`${childPath}/`) ||
-      currentPath === '/admin/notification/offline' ||
-      currentPath.startsWith('/admin/notification/offline/');
+      currentPath === '/87051809/notification/offline' ||
+      currentPath.startsWith('/87051809/notification/offline/');
   }
 
-  if (childPath === '/admin/notifications/load') {
+  if (childPath === '/87051809/notifications/load') {
     return currentPath === childPath ||
       currentPath.startsWith(`${childPath}/`) ||
-      currentPath === '/admin/notification/load' ||
-      currentPath.startsWith('/admin/notification/load/');
+      currentPath === '/87051809/notification/load' ||
+      currentPath.startsWith('/87051809/notification/load/');
   }
 
-  if (childPath === '/admin/notifications/expiry') {
+  if (childPath === '/87051809/notifications/expiry') {
     return currentPath === childPath ||
       currentPath.startsWith(`${childPath}/`) ||
-      currentPath === '/admin/notification/expiry' ||
-      currentPath.startsWith('/admin/notification/expiry/');
+      currentPath === '/87051809/notification/expiry' ||
+      currentPath.startsWith('/87051809/notification/expiry/');
   }
 
   return currentPath === childPath || currentPath.startsWith(`${childPath}/`);
@@ -108,33 +108,33 @@ export function isAdminChildPathActive(childPath: string, currentPath: string) {
 
 export function getAdminSectionTitle(pathname: string) {
   if (
-    pathname.startsWith('/admin/notifications/settings') ||
-    pathname.startsWith('/admin/settings/notification')
+    pathname.startsWith('/87051809/notifications/settings') ||
+    pathname.startsWith('/87051809/settings/notification')
   ) return '通知设置';
-  if (pathname.startsWith('/admin/settings/general')) return '通用设置';
-  if (pathname.startsWith('/admin/settings')) return '站点设置';
+  if (pathname.startsWith('/87051809/settings/general')) return '通用设置';
+  if (pathname.startsWith('/87051809/settings')) return '站点设置';
   if (
-    pathname.startsWith('/admin/notifications/offline') ||
-    pathname.startsWith('/admin/notification/offline')
+    pathname.startsWith('/87051809/notifications/offline') ||
+    pathname.startsWith('/87051809/notification/offline')
   ) return '离线通知';
   if (
-    pathname.startsWith('/admin/notifications/load') ||
-    pathname.startsWith('/admin/notification/load')
+    pathname.startsWith('/87051809/notifications/load') ||
+    pathname.startsWith('/87051809/notification/load')
   ) return '负载通知';
   if (
-    pathname.startsWith('/admin/notifications/expiry') ||
-    pathname.startsWith('/admin/notification/expiry')
+    pathname.startsWith('/87051809/notifications/expiry') ||
+    pathname.startsWith('/87051809/notification/expiry')
   ) return '到期通知';
   if (
-    pathname.startsWith('/admin/notifications') ||
-    pathname.startsWith('/admin/notification')
+    pathname.startsWith('/87051809/notifications') ||
+    pathname.startsWith('/87051809/notification')
   ) return '通知管理';
-  if (pathname.startsWith('/admin/ping')) return '延迟监测';
-  if (pathname.startsWith('/admin/themes')) return '主题管理';
-  if (pathname.startsWith('/admin/websites')) return '网站';
-  if (pathname.startsWith('/admin/logs')) return '审计日志';
-  if (pathname.startsWith('/admin/account')) return '账户设置';
-  if (pathname.startsWith('/admin/about')) return '关于';
-  if (pathname === '/admin' || pathname.startsWith('/admin/clients')) return '服务器';
+  if (pathname.startsWith('/87051809/ping')) return '延迟监测';
+  if (pathname.startsWith('/87051809/themes')) return '主题管理';
+  if (pathname.startsWith('/87051809/websites')) return '网站';
+  if (pathname.startsWith('/87051809/logs')) return '审计日志';
+  if (pathname.startsWith('/87051809/account')) return '账户设置';
+  if (pathname.startsWith('/87051809/about')) return '关于';
+  if (pathname === '/87051809' || pathname.startsWith('/87051809/clients')) return '服务器';
   return '管理后台';
 }

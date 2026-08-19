@@ -6,8 +6,8 @@ import { useApi } from '../../contexts/AuthContext';
 import type { SettingsMap } from '../../utils/settingsDiff';
 
 const settingsTabs = [
-  { path: '/admin/settings', label: '站点设置', icon: <Globe size={16} /> },
-  { path: '/admin/settings/general', label: '通用设置', icon: <Settings size={16} /> },
+  { path: '/87051809/settings', label: '站点设置', icon: <Globe size={16} /> },
+  { path: '/87051809/settings/general', label: '通用设置', icon: <Settings size={16} /> },
 ];
 
 export interface SettingsLayoutOutletContext {
@@ -56,8 +56,8 @@ export default function SettingsLayout() {
   }, [loadSettingsScope]);
 
   const isActive = (tab: typeof settingsTabs[0]) => {
-    if (tab.path === '/admin/settings') {
-      return location.pathname === '/admin/settings' || location.pathname === '/admin/settings/site';
+    if (tab.path === '/87051809/settings') {
+      return location.pathname === '/87051809/settings' || location.pathname === '/87051809/settings/site';
     }
     return location.pathname === tab.path || location.pathname.startsWith(`${tab.path}/`);
   };

@@ -94,7 +94,7 @@ export default function Layout() {
   };
 
   const enterBackend = () => {
-    navigate("/admin");
+    navigate("/87051809");
   };
 
   const openGithub = () => {

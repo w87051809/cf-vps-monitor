@@ -477,7 +477,6 @@ export default function Index() {
             liveData={liveMap}
             gridRenderer={renderGrid}
             offlinePosition={offlinePosition}
-            includeHidden={isAuthenticated}
           />
         </React.Suspense>
       ) : (

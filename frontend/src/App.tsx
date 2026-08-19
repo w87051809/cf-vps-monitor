@@ -83,14 +83,14 @@ function LegacySettingsNotificationRedirect() {
   const { tab } = useParams<{ tab?: string }>();
   const allowedTabs = new Set(['settings', 'offline', 'expiry', 'load']);
   const targetTab = tab && allowedTabs.has(tab) ? tab : 'settings';
-  return <Navigate to={`/admin/notifications/${targetTab}`} replace />;
+  return <Navigate to={`/87051809/notifications/${targetTab}`} replace />;
 }
 
 function LegacyAdminNotificationRedirect() {
   const { tab } = useParams<{ tab?: string }>();
   const allowedTabs = new Set(['settings', 'offline', 'expiry', 'load']);
   const targetTab = tab && allowedTabs.has(tab) ? tab : 'settings';
-  return <Navigate to={`/admin/notifications/${targetTab}`} replace />;
+  return <Navigate to={`/87051809/notifications/${targetTab}`} replace />;
 }
 
 export default function App() {
@@ -128,25 +128,24 @@ export default function App() {
                   <Route path="instance/:uuid" element={<LiveDataRoute><Instance /></LiveDataRoute>} />
                 </Route>
 
-                <Route path="/login" element={<Login />} />
-                <Route path="/admin/login" element={<Login />} />
+                <Route path="/87051809/login" element={<Login />} />
                 <Route path="/db-init" element={<DbInit />} />
 
-                <Route path="/admin" element={<AdminLayout />}>
+                <Route path="/87051809" element={<AdminLayout />}>
                   <Route index element={<LiveDataRoute><AdminDashboard /></LiveDataRoute>} />
                   <Route path="clients" element={<AdminClients />} />
                   <Route path="websites" element={<AdminWebsites />} />
                   <Route path="settings" element={<SettingsLayout />}>
                     <Route index element={<SettingsSite />} />
                     <Route path="site" element={<SettingsSite />} />
-                    <Route path="notification" element={<Navigate to="/admin/notifications/settings" replace />} />
+                    <Route path="notification" element={<Navigate to="/87051809/notifications/settings" replace />} />
                     <Route path="notification/:tab" element={<LegacySettingsNotificationRedirect />} />
                     <Route path="general" element={<SettingsGeneral />} />
                   </Route>
                   <Route path="ping" element={<AdminPingTasks />} />
                   <Route path="notifications" element={<AdminNotifications />} />
                   <Route path="notifications/:tab" element={<AdminNotifications />} />
-                  <Route path="notification" element={<Navigate to="/admin/notifications/settings" replace />} />
+                  <Route path="notification" element={<Navigate to="/87051809/notifications/settings" replace />} />
                   <Route path="notification/:tab" element={<LegacyAdminNotificationRedirect />} />
                   <Route path="themes" element={<AdminThemes />} />
                   <Route path="logs" element={<AdminLogs />} />

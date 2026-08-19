@@ -117,7 +117,7 @@ export default function DbInit() {
 
         {done && (
           <Button asChild size="3" variant="soft" mt="4" style={{ width: '100%' }}>
-            <Link to="/admin/login">进入后台登录</Link>
+            <Link to="/87051809/login">进入后台登录</Link>
           </Button>
         )}
       </Card>
