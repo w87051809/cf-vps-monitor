@@ -384,6 +384,8 @@ function Uninstall-AllAgents {
     }
   }
   Write-Host "Uninstalled all CF VPS Monitor agent tasks/services and files."
+  $uninstallMessageZh = (-join @([char]0x5DF2, [char]0x5378, [char]0x8F7D, [char]0x6240, [char]0x6709)) + " CF VPS Monitor " + (-join @([char]0x63A2, [char]0x9488, [char]0x4EFB, [char]0x52A1, [char]0x3001, [char]0x670D, [char]0x52A1, [char]0x548C, [char]0x6587, [char]0x4EF6, [char]0x3002))
+  Write-Host $uninstallMessageZh
 }
 
 if ($UninstallAll) {
