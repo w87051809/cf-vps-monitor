@@ -462,6 +462,7 @@ export function LiveDataProvider({ children, enabled = true, viewer = true }: Li
             const { type: _type, ...snapshot } = message;
             const normalized = normalizeLiveDataResponse(snapshot);
             if (!normalized) return;
+            applyLiveMetadataVersion(normalized.metadata_version);
             if (isEmptyLiveSnapshot(normalized)) {
               setLiveData(current => current && !isEmptyLiveSnapshot(current) ? current : normalized);
               setLoading(false);

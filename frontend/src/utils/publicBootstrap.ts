@@ -99,6 +99,11 @@ function writeClientPatch(patch: PublicBootstrapClientPatch): void {
   setLocalStorageItem(PUBLIC_BOOTSTRAP_CLIENT_PATCH_KEY, JSON.stringify(patch));
 }
 
+function clearClientPatch(): void {
+  clientPatchCache = null;
+  removeLocalStorageItem(PUBLIC_BOOTSTRAP_CLIENT_PATCH_KEY);
+}
+
 function normalizePublicClientPatch(raw: unknown): (Partial<ClientInfo> & { uuid: string }) | null {
   const record = asRecord(raw);
   const client = normalizePublicClient(record);
@@ -221,6 +226,9 @@ export async function fetchPublicBootstrap(options: { cache?: RequestCache; cach
       return res.json();
     })
     .then((payload) => {
+      // A cache-busted or authenticated response is authoritative. Do not let an
+      // older cross-tab optimistic patch keep overriding the server-side order.
+      if (options.cacheBust || includeHidden) clearClientPatch();
       const normalized = normalizePublicBootstrap(payload, { includeHidden });
       return includeHidden ? normalized : savePublicBootstrap(normalized);
     })

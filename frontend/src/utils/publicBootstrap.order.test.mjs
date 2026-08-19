@@ -43,3 +43,25 @@ assert.deepEqual(
   getCachedPublicBootstrap()?.clients?.map((client) => `${client.sort_order}:${client.name}`),
   ['1:香港123', '2:test2-LXC', '3:测试服务器1'],
 );
+
+patchCachedPublicBootstrapClients({
+  clients: {
+    upsert: [
+      { uuid: 'hong', sort_order: 3 },
+      { uuid: 'lxc', sort_order: 2 },
+      { uuid: 'test', sort_order: 1 },
+    ],
+  },
+});
+
+assert.deepEqual(
+  getCachedPublicBootstrap()?.clients?.map((client) => client.uuid),
+  ['test', 'lxc', 'hong'],
+);
+
+const refreshed = await fetchPublicBootstrap({ cache: 'reload', cacheBust: true });
+assert.deepEqual(
+  refreshed.clients?.map((client) => client.uuid),
+  ['hong', 'lxc', 'test'],
+  'a forced server refresh must replace a stale locally patched order',
+);

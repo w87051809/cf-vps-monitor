@@ -52,6 +52,11 @@ assert.equal(
   `${bundledUnixInstaller} | sh -s -- '-s' 'https://panel.example' '-t' 'token123' '-n' 'node-123' '-i' '33bc95df-513d-41be-8d98-30979fb17029' '--install-mode' 'user'`,
 );
 
+const windowsCommand = buildAgentInstallCommand({ platform: 'windows', ...base });
+assert.match(windowsCommand, /\$ErrorActionPreference='Stop'/);
+assert.match(windowsCommand, /Invoke-WebRequest 'https:\/\/panel\.example\/agent\/install-windows\.ps1'/);
+assert.match(windowsCommand, /-ErrorAction Stop; & '\.\\install-windows\.ps1'/);
+
 assert.equal(
   buildAgentUninstallAllCommand({ platform: 'unix' }),
   `wget -qO- 'https://raw.githubusercontent.com/${CF_MONITOR_REPOSITORY}/refs/heads/main/agent/install.sh' | sh -s -- '--uninstall-all' '--yes'`,

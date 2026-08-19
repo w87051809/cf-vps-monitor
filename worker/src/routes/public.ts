@@ -1212,7 +1212,9 @@ publicRoutes.get('/public/bootstrap', async (c) => {
     clients: snapshot.clients,
     nodes: snapshot.nodes,
     live,
-    metadata_version: String(snapshot.expiresAt),
+    metadata_version: typeof live.metadata_version === 'string' && live.metadata_version
+      ? live.metadata_version
+      : String(snapshot.expiresAt),
     snapshot_at: Date.now(),
     server_time: Date.now(),
   };
