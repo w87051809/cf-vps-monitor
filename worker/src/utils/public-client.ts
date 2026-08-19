@@ -14,6 +14,23 @@ type PublicClientSource = PublicClientRow & {
   token_last_used_ip?: unknown;
   token_rotated_at?: unknown;
   remark?: unknown;
+  cpu_name?: unknown;
+  virtualization?: unknown;
+  arch?: unknown;
+  cpu_cores?: unknown;
+  kernel_version?: unknown;
+  gpu_name?: unknown;
+  swap_total?: unknown;
+  version?: unknown;
+  price?: unknown;
+  billing_cycle?: unknown;
+  auto_renewal?: unknown;
+  currency?: unknown;
+  expired_at?: unknown;
+  traffic_limit?: unknown;
+  traffic_limit_type?: unknown;
+  created_at?: unknown;
+  updated_at?: unknown;
 };
 
 const PUBLIC_LIVE_RECORD_FIELDS = [
@@ -22,24 +39,15 @@ const PUBLIC_LIVE_RECORD_FIELDS = [
   'lastReportTime',
   'region',
   'cpu',
-  'gpu',
   'ram',
   'ram_total',
-  'swap',
-  'swap_total',
   'disk',
   'disk_total',
   'net_in',
   'net_out',
   'net_total_up',
   'net_total_down',
-  'load',
-  'temp',
   'uptime',
-  'process_count',
-  'connections',
-  'connections_udp',
-  'message',
 ] as const;
 
 function isPublicTag(tag: string): boolean {
@@ -58,22 +66,20 @@ export function sanitizePublicTags(tags: unknown): string {
 }
 
 export function toPublicClient(client: PublicClientSource): PublicClient {
-  const {
-    token: _token,
-    token_hash: _tokenHash,
-    token_last_used_at: _tokenLastUsedAt,
-    token_last_used_ip: _tokenLastUsedIp,
-    token_rotated_at: _tokenRotatedAt,
-    ipv4,
-    ipv6,
-    remark: _remark,
-    ...publicClient
-  } = client;
   return {
-    ...publicClient,
-    has_ipv4: typeof ipv4 === 'string' && isPublicIpAddress(ipv4),
-    has_ipv6: typeof ipv6 === 'string' && isPublicIpAddress(ipv6),
-    tags: sanitizePublicTags(publicClient.tags),
+    uuid: typeof client.uuid === 'string' ? client.uuid : '',
+    name: typeof client.name === 'string' ? client.name : '',
+    os: typeof client.os === 'string' ? client.os : '',
+    region: typeof client.region === 'string' ? client.region : '',
+    public_remark: typeof client.public_remark === 'string' ? client.public_remark : '',
+    mem_total: typeof client.mem_total === 'number' && Number.isFinite(client.mem_total) ? client.mem_total : 0,
+    disk_total: typeof client.disk_total === 'number' && Number.isFinite(client.disk_total) ? client.disk_total : 0,
+    group: typeof client.group === 'string' ? client.group : '',
+    tags: sanitizePublicTags(client.tags),
+    hidden: client.hidden === true,
+    sort_order: typeof client.sort_order === 'number' && Number.isFinite(client.sort_order) ? client.sort_order : 0,
+    has_ipv4: typeof client.ipv4 === 'string' && isPublicIpAddress(client.ipv4),
+    has_ipv6: typeof client.ipv6 === 'string' && isPublicIpAddress(client.ipv6),
   };
 }
 

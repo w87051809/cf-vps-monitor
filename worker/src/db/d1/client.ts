@@ -192,9 +192,21 @@ function clientsFromRows(rows: Row[]): Client[] {
 }
 
 function publicClientFromRow(row: Row): PublicClientRow {
-  const client = clientFromRow(row)!;
-  const { token: _token, token_hash: _tokenHash, token_last_used_at: _usedAt, token_last_used_ip: _usedIp, token_rotated_at: _rotatedAt, remark: _remark, ...publicClient } = client;
-  return publicClient;
+  return {
+    uuid: String(row.uuid || ''),
+    name: String(row.name || ''),
+    os: String(row.os || ''),
+    ipv4: String(row.ipv4 || ''),
+    ipv6: String(row.ipv6 || ''),
+    region: String(row.region || ''),
+    public_remark: String(row.public_remark || ''),
+    mem_total: Number(row.mem_total || 0),
+    disk_total: Number(row.disk_total || 0),
+    group: String(row.group || ''),
+    tags: String(row.tags || ''),
+    hidden: bool(row.hidden),
+    sort_order: Number(row.sort_order || 0),
+  };
 }
 
 function pingTaskFromRow(row: Row | null): PingTask | null {
@@ -322,7 +334,14 @@ export async function setSupabaseSettings(env: D1ApiEnv, settings: Record<string
 }
 
 export async function getSupabasePublicClients(env: D1ApiEnv): Promise<PublicClientRow[]> {
-  const rows = await all(env, 'select * from clients where hidden = 0 order by sort_order asc, lower(name) asc, created_at asc');
+  const rows = await all(
+    env,
+    `select uuid, name, os, ipv4, ipv6, region, public_remark, mem_total, disk_total,
+      "group", tags, hidden, sort_order
+    from clients
+    where hidden = 0
+    order by sort_order asc, lower(name) asc, created_at asc`,
+  );
   return rows.map(publicClientFromRow);
 }
 

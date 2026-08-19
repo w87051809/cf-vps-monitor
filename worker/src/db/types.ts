@@ -37,10 +37,22 @@ export interface Client {
   updated_at: string;
 }
 
-export type PublicClientRow = Omit<Client, 'token' | 'token_hash' | 'token_last_used_at' | 'token_last_used_ip' | 'token_rotated_at' | 'remark'> & {
-  ipv4: string;
-  ipv6: string;
-};
+export type PublicClientRow = Pick<
+  Client,
+  | 'uuid'
+  | 'name'
+  | 'os'
+  | 'ipv4'
+  | 'ipv6'
+  | 'region'
+  | 'public_remark'
+  | 'mem_total'
+  | 'disk_total'
+  | 'group'
+  | 'tags'
+  | 'hidden'
+  | 'sort_order'
+>;
 
 export type ScheduledClientRow = Pick<Client, 'uuid' | 'name' | 'created_at' | 'expired_at'>;
 export type ClientTokenMeta = Pick<Client, 'uuid' | 'token' | 'token_hash' | 'name'>;

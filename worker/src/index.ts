@@ -157,19 +157,14 @@ function canServeWithoutDatabaseStartup(pathname: string): boolean {
     pathname === '/api/me' ||
     pathname === '/api/clients' ||
     pathname.startsWith('/api/clients/') ||
-    pathname === '/api/nodes' ||
     pathname === '/api/public' ||
     pathname === '/api/public/bootstrap' ||
     pathname === '/api/site-logo' ||
-    pathname === '/api/task/ping' ||
-    pathname.startsWith('/api/records/') ||
-    pathname.startsWith('/api/recent/') ||
     pathname === '/api/websites' ||
     pathname.startsWith('/api/websites/') ||
     pathname === '/api/theme/active.css' ||
     pathname.startsWith('/api/theme/assets/') ||
     pathname.startsWith('/api/theme/manifest/') ||
-    pathname === '/api/live' ||
     pathname === '/api/live/clients' ||
     pathname === '/api/ws/live' ||
     pathname === '/api/ws/live-token' ||

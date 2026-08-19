@@ -45,18 +45,12 @@ const MAX_LOGIN_PASSWORD_LENGTH = 1024;
 const MAX_MFA_CHALLENGE_LENGTH = 4096;
 const MAX_MFA_CODE_LENGTH = 128;
 const MAX_PUBLIC_JSON_BYTES = 8 * 1024;
-const MAX_PUBLIC_RECORD_RANGE_MS = 3 * 24 * 60 * 60 * 1000;
-const PUBLIC_RECORD_RANGE_SLOP_MS = 60 * 1000;
 const PUBLIC_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const PUBLIC_METADATA_RATE_LIMIT_MAX = 120;
 const PUBLIC_HISTORY_RATE_LIMIT_MAX = 60;
-const PUBLIC_LIVE_RATE_LIMIT_MAX = 180;
 const PUBLIC_ADMIN_RECOVERY_RATE_LIMIT_MAX = 5;
 const PUBLIC_METADATA_CACHE_SECONDS = 30;
 const PUBLIC_HISTORY_CACHE_SECONDS = 10;
-const PUBLIC_LIVE_CACHE_SECONDS = 2;
-const PUBLIC_HISTORY_MAX_PAGE = 1000;
-const PUBLIC_HISTORY_MAX_OFFSET_ROWS = 5000;
 const PUBLIC_METADATA_CACHE_MS = PUBLIC_METADATA_CACHE_SECONDS * 1000;
 const PUBLIC_HISTORY_CACHE_MS = PUBLIC_HISTORY_CACHE_SECONDS * 1000;
 const PUBLIC_HISTORY_CACHE_MAX_ENTRIES = 256;
@@ -81,7 +75,6 @@ let publicRateLimitSweepCounter = 0;
 type PublicClientsSnapshot = {
   clients: PublicClient[];
   nodes: PublicNode[];
-  publicClientIds: Set<string>;
   expiresAt: number;
 };
 type AdminClientsSnapshotOverlay = {
@@ -93,10 +86,8 @@ type PublicNode = Omit<PublicClient, 'tags'> & { tags: string[] };
 
 let publicSettingsCache: { value: PublicSettings; expiresAt: number } | null = null;
 let publicClientsSnapshotCache: PublicClientsSnapshot | null = null;
-let publicPingTasksCache: { value: db.PingTask[]; expiresAt: number } | null = null;
 const publicMetadataResponseCache = new Map<string, { value: unknown; expiresAt: number }>();
 const publicHistoryCache = new Map<string, { value: unknown; expiresAt: number }>();
-const publicClientVisibilityCache = new Map<string, { value: boolean; expiresAt: number }>();
 let lastLoginRateLimitCleanupAt = 0;
 const loginFailureAuditThrottle = new Map<string, { expiresAt: number }>();
 
@@ -178,10 +169,8 @@ function isFreshPublicMetadataRequest(c: PublicContext): boolean {
 export function invalidatePublicMetadataCache(): void {
   publicSettingsCache = null;
   publicClientsSnapshotCache = null;
-  publicPingTasksCache = null;
   publicMetadataResponseCache.clear();
   publicHistoryCache.clear();
-  publicClientVisibilityCache.clear();
 }
 
 function publicHistoryCacheKey(c: PublicContext, bucket: string): string {
@@ -240,9 +229,7 @@ export function purgePublicMetadataEdgeCache(c: Context<{ Bindings: Bindings; Va
   const paths = [
     '/api/public/bootstrap',
     '/api/clients',
-    '/api/nodes',
     '/api/public',
-    '/api/task/ping',
     '/api/websites',
   ];
   const task = Promise.all(paths.map(path => caches.default.delete(publicMetadataPathCacheRequest(c, path)))).catch(() => []);
@@ -391,90 +378,6 @@ function readIntParam(value: string | undefined, fallback: number, max: number):
   return Math.min(parsed, max);
 }
 
-function readTimeCursorParam(value: string | undefined): { cursor?: string; error?: string } {
-  const text = (value || '').trim();
-  if (!text) return {};
-  const time = Date.parse(text);
-  if (!Number.isFinite(time)) return { error: 'cursor 参数无效' };
-  return { cursor: new Date(time).toISOString() };
-}
-
-function readPublicHistoryPageParams(
-  c: PublicContext,
-  defaultLimit: number,
-  maxLimit: number,
-): { page: number; limit: number } | { response: Response } {
-  const page = readIntParam(c.req.query('page'), 1, PUBLIC_HISTORY_MAX_PAGE);
-  const limit = readIntParam(c.req.query('limit'), defaultLimit, maxLimit);
-  const offset = (page - 1) * limit;
-  if (offset > PUBLIC_HISTORY_MAX_OFFSET_ROWS) {
-    return {
-      response: c.json({
-        error: '公开历史 page 查询过深，请使用 cursor 分页',
-      }, 400),
-    };
-  }
-  return { page, limit };
-}
-
-function readIntListParam(value: string | undefined, maxItems: number): number[] {
-  if (!value) return [];
-  return [...new Set(
-    value
-      .split(',')
-      .map((item) => Number.parseInt(item.trim(), 10))
-      .filter((item) => Number.isInteger(item) && item > 0),
-  )].slice(0, maxItems);
-}
-
-function readPingTaskHistorySpecs(value: string | undefined, maxItems: number): db.PingTaskHistoryRequest[] {
-  if (!value) return [];
-  const specs: db.PingTaskHistoryRequest[] = [];
-  const seen = new Set<number>();
-  for (const rawSpec of value.split(',')) {
-    const [rawTaskId, rawLimit, rawInterval] = rawSpec.split(':');
-    const taskId = Number.parseInt(rawTaskId || '', 10);
-    if (!Number.isInteger(taskId) || taskId <= 0 || seen.has(taskId)) continue;
-    seen.add(taskId);
-    specs.push({
-      taskId,
-      limit: readIntParam(rawLimit, 120, 360),
-      intervalSec: readIntParam(rawInterval, 60, 86_400),
-    });
-    if (specs.length >= maxItems) break;
-  }
-  return specs;
-}
-
-function wantsPagedResponse(c: PublicContext): boolean {
-  return c.req.query('paged') === 'true' || c.req.query('page') !== undefined || c.req.query('cursor') !== undefined;
-}
-
-function emptyPagedResult<T>(page: number, limit: number) {
-  return {
-    data: [] as T[],
-    total: 0,
-    page,
-    limit,
-    has_more: false,
-  };
-}
-
-function validatePublicTimeRange(start: string, end: string): string | null {
-  const startMs = Date.parse(start);
-  const endMs = Date.parse(end);
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
-    return '时间范围格式无效';
-  }
-  if (endMs < startMs) {
-    return '结束时间不能早于开始时间';
-  }
-  if (endMs - startMs > MAX_PUBLIC_RECORD_RANGE_MS + PUBLIC_RECORD_RANGE_SLOP_MS) {
-    return '公开历史查询最多支持 3 天时间范围';
-  }
-  return null;
-}
-
 async function getPublicSettings(database: db.QueryDatabase, force = false): Promise<PublicSettings> {
   const now = Date.now();
   if (!force && cacheIsFresh(publicSettingsCache, now)) return publicSettingsCache!.value;
@@ -535,14 +438,7 @@ function applyPublicClientsOverlay(clients: PublicClient[], overlay: AdminClient
     const client = toPublicClient(raw as Parameters<typeof toPublicClient>[0]);
     if (!client.uuid || (!includeHidden && client.hidden) || removed.has(client.uuid)) continue;
     const existing = byUuid.get(client.uuid);
-    const next = { ...existing, ...client };
-    if (existing) {
-      if (client.price === 0 && existing.price !== 0) next.price = existing.price;
-      if (client.billing_cycle === 0 && existing.billing_cycle !== 0) next.billing_cycle = existing.billing_cycle;
-      if (!client.currency && existing.currency) next.currency = existing.currency;
-      if (!client.expired_at && existing.expired_at) next.expired_at = existing.expired_at;
-    }
-    byUuid.set(client.uuid, next);
+    byUuid.set(client.uuid, { ...existing, ...client });
   }
   return [...byUuid.values()];
 }
@@ -556,64 +452,18 @@ async function getPublicClientsSnapshot(c: PublicContext, database: db.QueryData
     .filter(client => includeHidden || !client.hidden)
     .map(toPublicClient);
   publicClients = applyPublicClientsOverlay(publicClients, await readAdminClientsSnapshotOverlay(c), includeHidden);
-  const publicClientIds = new Set(publicClients.map(client => client.uuid));
   const nodes = publicClients.map((client) => ({
     ...client,
     tags: client.tags ? client.tags.split(';').filter(Boolean) : [],
   }));
   const expiresAt = now + PUBLIC_METADATA_CACHE_MS;
-  for (const client of clients) {
-    publicClientVisibilityCache.set(client.uuid, { value: !client.hidden, expiresAt });
-  }
   const snapshot = {
     clients: publicClients,
     nodes,
-    publicClientIds,
     expiresAt,
   };
   if (!includeHidden) publicClientsSnapshotCache = snapshot;
   return snapshot;
-}
-
-function boundedPublicPingIntervalSec(settings: PublicSettings): number {
-  const intervalSec = Number(settings.ping_record_persist_interval_sec);
-  return Number.isFinite(intervalSec)
-    ? Math.min(Math.max(Math.floor(intervalSec), 60), 3600)
-    : 300;
-}
-
-async function getPublicPingTasks(
-  database: db.QueryDatabase,
-  publicClientIds: Set<string>,
-  pingIntervalSec: number,
-  force = false,
-): Promise<db.PingTask[]> {
-  const now = Date.now();
-  if (force || !cacheIsFresh(publicPingTasksCache, now)) {
-    publicPingTasksCache = {
-      value: await db.listPingTasks(database, force),
-      expiresAt: now + PUBLIC_METADATA_CACHE_MS,
-    };
-  }
-  const tasks = publicPingTasksCache?.value || [];
-  return tasks
-    .map(task => toPublicPingTask(task, publicClientIds))
-    .map(task => task ? { ...task, interval_sec: pingIntervalSec } : task)
-    .filter((task): task is db.PingTask => Boolean(task));
-}
-
-function toPublicPingTask(task: db.PingTask, publicClientIds: Set<string>): db.PingTask | null {
-  if (task.all_clients) {
-    return { ...task, clients: [] };
-  }
-
-  const clients = task.clients.filter(uuid => publicClientIds.has(uuid));
-  if (clients.length === 0) return null;
-
-  return {
-    ...task,
-    clients,
-  };
 }
 
 function getClientIp(c: PublicContext): string {
@@ -707,52 +557,8 @@ function guardPublicHistory(c: PublicContext, bucket: string): Promise<Response 
   return publicApiRateLimit(c, `history:${bucket}`, PUBLIC_HISTORY_RATE_LIMIT_MAX);
 }
 
-function guardPublicLive(c: PublicContext): Promise<Response | null> {
-  return publicApiRateLimit(c, 'live', PUBLIC_LIVE_RATE_LIMIT_MAX);
-}
-
 function guardAdminRecovery(c: PublicContext): Promise<Response | null> {
   return publicApiRateLimit(c, 'admin-recovery', PUBLIC_ADMIN_RECOVERY_RATE_LIMIT_MAX);
-}
-
-async function preparePublicHistoryRequest(
-  c: PublicContext,
-  database: db.QueryDatabase,
-  uuid: string,
-  bucket: string,
-): Promise<{ cacheKey: string; visible: boolean; includeHidden: boolean; response?: Response }> {
-  const cacheKey = publicHistoryCacheKey(c, bucket);
-  const limited = await guardPublicHistory(c, bucket);
-  const includeHidden = c.req.query('include_hidden') === '1' && await hasAdminSession(c);
-  if (limited) return { cacheKey, visible: true, includeHidden, response: limited };
-
-  const cachedVisibility = publicClientVisibilityCache.get(uuid);
-
-  if (!includeHidden && cacheIsFresh(cachedVisibility)) {
-    if (!cachedVisibility!.value) return { cacheKey, visible: false, includeHidden };
-    const cached = await getPublicHistoryCache(c, cacheKey);
-    if (cached) return { cacheKey, visible: true, includeHidden, response: cached };
-    return { cacheKey, visible: true, includeHidden };
-  }
-
-  const snapshot = await getPublicClientsSnapshot(c, database, false, includeHidden);
-  const visible = snapshot.publicClientIds.has(uuid);
-  if (!visible) return { cacheKey, visible: false, includeHidden };
-
-  const cached = includeHidden ? null : await getPublicHistoryCache(c, cacheKey);
-  if (cached) return { cacheKey, visible: true, includeHidden, response: cached };
-
-  return { cacheKey, visible: true, includeHidden };
-}
-
-function publicHistoryResult(
-  c: PublicContext,
-  prepared: { cacheKey: string; includeHidden: boolean },
-  value: unknown,
-): Response {
-  return prepared.includeHidden
-    ? privateJsonResponse(value)
-    : setPublicHistoryCache(c, prepared.cacheKey, value);
 }
 
 function normalizeLoginUsername(username: string): string {
@@ -1413,203 +1219,6 @@ publicRoutes.get('/public/bootstrap', async (c) => {
   return includeHidden ? privateJsonResponse(payload) : setPublicMetadataResponse(c, payload, !fresh);
 });
 
-// 获取客户端最近的监控记录
-publicRoutes.get('/recent/:uuid', async (c) => {
-  const uuid = c.req.param('uuid');
-  const limit = readIntParam(c.req.query('limit'), 30, 150);
-  const database = getDatabase(c.env);
-  const prepared = await preparePublicHistoryRequest(c, database, uuid, 'recent');
-  if (prepared.response) return prepared.response;
-  if (!prepared.visible) return publicHistoryResult(c, prepared, []);
-  const records = await db.getRecentRecords(database, uuid, limit);
-  return publicHistoryResult(c, prepared, records);
-});
-
-// 获取系统负载历史记录
-publicRoutes.get('/records/load', async (c) => {
-  const uuid = c.req.query('uuid');
-  const start = c.req.query('start');
-  const end = c.req.query('end');
-
-  if (!uuid) {
-    return c.json({ error: '缺少 uuid 参数' }, 400);
-  }
-
-  if (start && end) {
-    const rangeError = validatePublicTimeRange(start, end);
-    if (rangeError) return c.json({ error: rangeError }, 400);
-  }
-
-  const database = getDatabase(c.env);
-  const prepared = await preparePublicHistoryRequest(c, database, uuid, 'records-load');
-  if (prepared.response) return prepared.response;
-  if (!prepared.visible) {
-    if (wantsPagedResponse(c)) {
-      const params = readPublicHistoryPageParams(c, 100, 500);
-      if ('response' in params) return params.response;
-      return publicHistoryResult(c, prepared, emptyPagedResult(params.page, params.limit));
-    }
-    return publicHistoryResult(c, prepared, []);
-  }
-
-  if (start && end) {
-    const limitQuery = c.req.query('limit');
-    if (wantsPagedResponse(c)) {
-      const cursorParam = readTimeCursorParam(c.req.query('cursor'));
-      if (cursorParam.error) return c.json({ error: cursorParam.error }, 400);
-      if (cursorParam.cursor) {
-        const limit = readIntParam(limitQuery, 100, 500);
-        return publicHistoryResult(c, prepared, await db.getRecordsByTimeRangeCursor(database, uuid, start, end, cursorParam.cursor, limit));
-      }
-      const params = readPublicHistoryPageParams(c, 100, 500);
-      if ('response' in params) return params.response;
-      return publicHistoryResult(c, prepared, await db.getRecordsByTimeRangePaged(database, uuid, start, end, params.page, params.limit));
-    }
-
-    const limit = readIntParam(limitQuery, 500, 1000);
-    return publicHistoryResult(c, prepared, await db.getRecordsByTimeRangeLimited(database, uuid, start, end, limit));
-  }
-
-  const records = await db.getRecentRecords(database, uuid, readIntParam(c.req.query('limit'), 150, 500));
-  if (wantsPagedResponse(c)) {
-    return publicHistoryResult(c, prepared, {
-      data: records,
-      total: records.length,
-      page: 1,
-      limit: records.length,
-      has_more: false,
-    });
-  }
-  return publicHistoryResult(c, prepared, records);
-});
-
-// 获取 GPU 记录
-publicRoutes.get('/records/gpu', async (c) => {
-  const uuid = c.req.query('uuid');
-  const start = c.req.query('start');
-  const end = c.req.query('end');
-  const limit = readIntParam(c.req.query('limit'), 100, 500);
-
-  if (!uuid) {
-    return c.json({ error: '缺少 uuid 参数' }, 400);
-  }
-
-  if (start && end) {
-    const rangeError = validatePublicTimeRange(start, end);
-    if (rangeError) return c.json({ error: rangeError }, 400);
-  }
-
-  const database = getDatabase(c.env);
-  const prepared = await preparePublicHistoryRequest(c, database, uuid, 'records-gpu');
-  if (prepared.response) return prepared.response;
-  if (!prepared.visible) {
-    if (wantsPagedResponse(c)) {
-      const params = readPublicHistoryPageParams(c, 100, 500);
-      if ('response' in params) return params.response;
-      return publicHistoryResult(c, prepared, emptyPagedResult(params.page, params.limit));
-    }
-    return publicHistoryResult(c, prepared, []);
-  }
-
-  if (wantsPagedResponse(c)) {
-    const cursorParam = readTimeCursorParam(c.req.query('cursor'));
-    if (cursorParam.error) return c.json({ error: cursorParam.error }, 400);
-    if (cursorParam.cursor) {
-      return publicHistoryResult(c, prepared, await db.getGPURecordsCursor(database, uuid, start, end, cursorParam.cursor, limit));
-    }
-    const params = readPublicHistoryPageParams(c, 100, 500);
-    if ('response' in params) return params.response;
-    return publicHistoryResult(c, prepared, await db.getGPURecordsPaged(database, uuid, start, end, params.page, params.limit));
-  }
-
-  const records = await db.getGPURecords(database, uuid, start, end, limit);
-  return publicHistoryResult(c, prepared, records);
-});
-
-// 获取 Ping 记录
-publicRoutes.get('/records/ping', async (c) => {
-  const uuid = c.req.query('uuid');
-  const taskId = parseInt(c.req.query('task_id') || '0');
-  const limit = readIntParam(c.req.query('limit'), 120, 360);
-
-  if (!uuid || !taskId) {
-    return c.json({ error: '缺少参数' }, 400);
-  }
-
-  const database = getDatabase(c.env);
-  const prepared = await preparePublicHistoryRequest(c, database, uuid, 'records-ping');
-  if (prepared.response) return prepared.response;
-  if (!prepared.visible) {
-    if (wantsPagedResponse(c)) {
-      const params = readPublicHistoryPageParams(c, 120, 360);
-      if ('response' in params) return params.response;
-      return publicHistoryResult(c, prepared, emptyPagedResult(params.page, params.limit));
-    }
-    return publicHistoryResult(c, prepared, []);
-  }
-
-  if (wantsPagedResponse(c)) {
-    const cursorParam = readTimeCursorParam(c.req.query('cursor'));
-    if (cursorParam.error) return c.json({ error: cursorParam.error }, 400);
-    if (cursorParam.cursor) {
-      return publicHistoryResult(c, prepared, await db.getPingRecordsCursor(database, uuid, taskId, cursorParam.cursor, limit));
-    }
-    const params = readPublicHistoryPageParams(c, 120, 360);
-    if ('response' in params) return params.response;
-    return publicHistoryResult(c, prepared, await db.getPingRecordsPaged(database, uuid, taskId, params.page, params.limit));
-  }
-
-  const records = await db.getPingRecords(database, uuid, taskId, limit);
-  return publicHistoryResult(c, prepared, records);
-});
-
-// 批量获取 Ping 记录。详情页用它一次读取多个任务，避免同一批 ping_snapshots 被重复扫描。
-publicRoutes.get('/records/ping/batch', async (c) => {
-  const uuid = c.req.query('uuid');
-  const taskSpecs = readPingTaskHistorySpecs(c.req.query('task_specs'), 16);
-  const taskIds = taskSpecs.length > 0
-    ? taskSpecs.map(task => task.taskId)
-    : readIntListParam(c.req.query('task_ids'), 16);
-  const limit = readIntParam(c.req.query('limit'), 120, 360);
-  const baseIntervalSec = readIntParam(c.req.query('base_interval'), 60, 86_400);
-  const cursorParam = readTimeCursorParam(c.req.query('cursor'));
-  if (cursorParam.error) return c.json({ error: cursorParam.error }, 400);
-
-  if (!uuid || taskIds.length === 0) {
-    return c.json({ error: '缺少参数' }, 400);
-  }
-
-  const database = getDatabase(c.env);
-  const prepared = await preparePublicHistoryRequest(c, database, uuid, 'records-ping-batch');
-  if (prepared.response) return prepared.response;
-  if (!prepared.visible) return publicHistoryResult(c, prepared, {});
-
-  const records = await db.getPingRecordsForTasks(
-    database,
-    uuid,
-    taskSpecs.length > 0 ? taskSpecs : taskIds,
-    limit,
-    baseIntervalSec,
-    cursorParam.cursor,
-  );
-  return publicHistoryResult(c, prepared, records);
-});
-
-// 获取 Ping 任务列表（公开）
-publicRoutes.get('/task/ping', async (c) => {
-  const fresh = isFreshPublicMetadataRequest(c);
-  const includeHidden = c.req.query('include_hidden') === '1' && await hasAdminSession(c);
-  const cached = !fresh && !includeHidden ? await getCachedPublicMetadataResponse(c, 'ping-tasks') : null;
-  if (cached) return cached;
-  const limited = await guardPublicMetadata(c, 'ping-tasks');
-  if (limited) return limited;
-  const database = getDatabase(c.env);
-  const snapshot = await getPublicClientsSnapshot(c, database, fresh, includeHidden);
-  const settings = await getPublicSettings(database, fresh);
-  const tasks = await getPublicPingTasks(database, snapshot.publicClientIds, boundedPublicPingIntervalSec(settings), fresh);
-  return includeHidden ? privateJsonResponse(tasks) : setPublicMetadataResponse(c, tasks, !fresh);
-});
-
 // 获取网站监控列表（公开）
 publicRoutes.get('/websites', async (c) => {
   const metrics: TimingMetric[] = [];
@@ -1666,35 +1275,5 @@ publicRoutes.get('/websites/:id', async (c) => {
   return includeHidden ? privateJsonResponse(monitor) : setPublicMetadataResponse(c, monitor);
 });
 
-// 节点信息（兼容旧版格式）
-publicRoutes.get('/nodes', async (c) => {
-  const includeHidden = c.req.query('include_hidden') === '1' && await hasAdminSession(c);
-  const cached = includeHidden ? null : await getCachedPublicMetadataResponse(c, 'nodes');
-  if (cached) return cached;
-  const limited = await guardPublicMetadata(c, 'nodes');
-  if (limited) return limited;
-  const snapshot = await getPublicClientsSnapshot(c, getDatabase(c.env), false, includeHidden);
-  return includeHidden ? privateJsonResponse(snapshot.nodes) : setPublicMetadataResponse(c, snapshot.nodes);
-});
-
-// 实时数据 - 代理到 Durable Object
-publicRoutes.get('/live', async (c) => {
-  const limited = await guardPublicLive(c);
-  if (limited) return limited;
-  const includeHidden = c.req.query('include_hidden') === '1' && await hasAdminSession(c);
-  const cached = includeHidden ? null : await getPublicEdgeCache(c, PUBLIC_LIVE_CACHE_SECONDS);
-  if (cached) return cached;
-
-  const doId = c.env.LIVE_DATA.idFromName('global');
-  const stub = c.env.LIVE_DATA.get(doId);
-  const doUrl = new URL(c.req.url);
-  if (includeHidden) doUrl.searchParams.set('include_hidden', '1');
-  else doUrl.searchParams.delete('include_hidden');
-  const response = includeHidden
-    ? privateJsonResponse(await (await stub.fetch(new Request(doUrl.toString(), c.req.raw))).json())
-    : withPublicCacheHeader(c, await stub.fetch(new Request(doUrl.toString(), c.req.raw)), PUBLIC_LIVE_CACHE_SECONDS, 'miss');
-  if (!includeHidden) putPublicEdgeCache(c, response);
-  return response;
-});
 
 export { publicRoutes, generateToken, hashPassword, verifyPassword };

@@ -546,8 +546,22 @@ EOF
 validate_common() {
   [ -n "$SERVICE_NAME" ] || die "--service-name cannot be empty."
   [ "$MODE" = "websocket" ] || [ "$MODE" = "http" ] || die "--mode must be websocket or http."
-  if ! printf '%s' "$TRAFFIC_RESET_DAY" | grep -Eq '^[0-9]+$' || [ "$TRAFFIC_RESET_DAY" -lt 1 ] || [ "$TRAFFIC_RESET_DAY" -gt 31 ]; then
+  if ! printf '%s' "$INTERVAL" | grep -Eq '^[0-9]{1,5}$' || [ "$INTERVAL" -lt 3 ] || [ "$INTERVAL" -gt 86400 ]; then
+    die "--interval must be a number from 3 to 86400."
+  fi
+  if ! printf '%s' "$PING_INTERVAL" | grep -Eq '^[0-9]{1,5}$' || [ "$PING_INTERVAL" -lt 1 ] || [ "$PING_INTERVAL" -gt 86400 ]; then
+    die "--ping-interval must be a number from 1 to 86400."
+  fi
+  if ! printf '%s' "$TRAFFIC_RESET_DAY" | grep -Eq '^[0-9]{1,2}$' || [ "$TRAFFIC_RESET_DAY" -lt 1 ] || [ "$TRAFFIC_RESET_DAY" -gt 31 ]; then
     die "--traffic-reset-day must be a number from 1 to 31."
+  fi
+  reject_newline "install-dir" "$INSTALL_DIR"
+  if [ "$SERVICE_MODE" = "user" ]; then
+    case "$INSTALL_DIR" in
+      *%*) die "--install-dir must not contain % in user mode because crontab treats it specially." ;;
+    esac
+  elif ! printf '%s' "$INSTALL_DIR" | grep -Eq '^/[A-Za-z0-9._/@+-]+$'; then
+    die "--install-dir must be an absolute path using only A-Z, a-z, 0-9, slash, dot, underscore, @, +, or dash in system mode."
   fi
   for pair in \
     "server:$SERVER" "token:$TOKEN" "name:$NODE_NAME" "mode:$MODE" \
@@ -822,6 +836,7 @@ EOF
 
 install_user_autostart() {
   marker="cf-vps-monitor:${BASE_ID}"
+  quoted_start_script="$(shell_quote "${INSTALL_DIR}/start.sh")"
   if ! has crontab; then
     echo "crontab not found; agent is started now but reboot autostart is not configured."
     return 0
@@ -831,7 +846,7 @@ install_user_autostart() {
     return 0
   fi
   tmp="$(mktemp "${TMPDIR:-/tmp}/cf-vps-monitor-cron.XXXXXX")"
-  (crontab -l 2>/dev/null | grep -v "$marker" || true; printf '@reboot /bin/sh %s # %s\n' "$INSTALL_DIR/start.sh" "$marker") > "$tmp"
+  (crontab -l 2>/dev/null | grep -v "$marker" || true; printf '@reboot /bin/sh %s # %s\n' "$quoted_start_script" "$marker") > "$tmp"
   crontab "$tmp"
   rm -f "$tmp"
   echo "Autostart: crontab @reboot configured."
